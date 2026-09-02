@@ -47,6 +47,7 @@ class EventSummary(BaseModel):
     start_ts: datetime
     room: str | None = None
     attendance_count: int
+    status: str | None = "upcoming"
 
 
 class EventsResponse(BaseModel):

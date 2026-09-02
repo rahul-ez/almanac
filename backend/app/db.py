@@ -217,6 +217,7 @@ def get_events(upcoming: bool = True) -> list[dict[str, Any]]:
             c.name AS club,
             e.start_ts,
             r.name AS room,
+            e.status,
             (SELECT COUNT(*) FROM {SCHEMA}.event_attendance a
              WHERE a.event_id = e.event_id) AS attendance_count
         FROM {SCHEMA}.events e

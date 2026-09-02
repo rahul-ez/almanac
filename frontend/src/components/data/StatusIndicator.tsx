@@ -28,8 +28,9 @@ const STATE_LABELS: Record<SemanticState, string> = {
 };
 
 export function StatusIndicator({ state, label }: StatusIndicatorProps) {
-  const { text, bg } = stateColors[state];
-  const displayLabel = label ?? STATE_LABELS[state];
+  const safeState: SemanticState = state && stateColors[state] ? state : "upcoming";
+  const { text, bg } = stateColors[safeState];
+  const displayLabel = label ?? STATE_LABELS[safeState] ?? "Upcoming";
 
   return (
     <span

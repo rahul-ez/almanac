@@ -8,21 +8,30 @@ import type { EventSummary } from "../../api/client";
 import { StatusIndicator } from "../data/StatusIndicator";
 import { AttendanceDatum } from "./AttendanceDatum";
 import { LiveUpdateHighlight } from "./LiveUpdateHighlight";
-import { formatDate, formatTime } from "../../lib/formatTime";
+import { formatDate, formatTime, deriveEventStatus } from "../../lib/formatTime";
+import type { SemanticState } from "../../styles/tokens";
 
 interface EventCardProps {
   event: EventSummary;
 }
 
 export function EventCard({ event }: EventCardProps) {
-  const isClickable = event.status === "upcoming";
-  const isLive = event.status === "ongoing";
+  const derived = deriveEventStatus(event.start_ts);
+  const currentStatus: SemanticState =
+    event.status === "cancelled"
+      ? "cancelled"
+      : event.status === "ongoing" || event.status === "completed" || event.status === "upcoming"
+      ? event.status
+      : derived;
+
+  const isClickable = currentStatus === "upcoming";
+  const isLive = currentStatus === "ongoing";
 
   const cardContent = (
     <>
       {/* Header row: status + club */}
       <div className="flex items-center justify-between gap-2">
-        <StatusIndicator state={event.status} />
+        <StatusIndicator state={currentStatus} />
         <span className="text-caption text-text-muted truncate">{event.club}</span>
       </div>
 
