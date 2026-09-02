@@ -120,3 +120,21 @@ class IngestAttendanceRequest(BaseModel):
 class IngestAttendanceResponse(BaseModel):
     status: Literal["ok"]
     attendance_id: str
+
+
+# --- Internships ---------------------------------------------------------------
+class InternshipSummary(BaseModel):
+    internship_id: str
+    company_name: str
+    role_title: str
+    location: str
+    stipend: str | None = None
+    eligibility: str | None = None
+    deadline_ts: datetime
+    apply_url: str | None = None
+    status: str = "open"
+
+
+class InternshipsResponse(BaseModel):
+    internships: list[InternshipSummary]
+

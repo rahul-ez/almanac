@@ -95,6 +95,23 @@ export interface CreateEventResponse {
   error?: string;
 }
 
+export interface InternshipSummary {
+  internship_id: string;
+  company_name: string;
+  role_title: string;
+  location: string;
+  stipend?: string | null;
+  eligibility?: string | null;
+  deadline_ts: string;
+  apply_url?: string | null;
+  status: "open" | "closed";
+}
+
+export interface ListInternshipsResponse {
+  internships: InternshipSummary[];
+  error?: string;
+}
+
 // ── Mock flag ─────────────────────────────────────────────────────────────────
 // Defaults to false (connecting to live Backend at /api). Set VITE_USE_MOCK=true for mock UI development.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -252,3 +269,26 @@ export async function createEvent(payload: CreateEventRequest): Promise<CreateEv
     body: JSON.stringify(payload),
   });
 }
+
+/** List internship opportunities. Powers Newsletter Home internships section. */
+export async function listInternships(openOnly = true): Promise<ListInternshipsResponse> {
+  if (USE_MOCK) {
+    return {
+      internships: [
+        {
+          internship_id: "int_001",
+          company_name: "Databricks",
+          role_title: "Data Engineering Intern",
+          location: "Bangalore / Hybrid",
+          stipend: "Rs 75,000/month",
+          eligibility: "3rd & 4th Year CS/IT",
+          deadline_ts: "2026-09-30T23:59:59",
+          apply_url: "https://databricks.com/careers",
+          status: "open",
+        },
+      ],
+    };
+  }
+  return apiFetch<ListInternshipsResponse>(`/api/internships?open_only=${openOnly}`);
+}
+

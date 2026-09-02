@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.routers import events, genie, ingest, rooms, session, teachers
+from app.routers import events, genie, ingest, internships, rooms, session, teachers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("campus_companion")
 
-app = FastAPI(title="Campus Companion API")
+app = FastAPI(title="Almanac API")
 
 app.include_router(session.router, prefix="/api", tags=["session"])
 app.include_router(genie.router, prefix="/api", tags=["genie"])
@@ -28,6 +28,7 @@ app.include_router(events.router, prefix="/api", tags=["events"])
 app.include_router(rooms.router, prefix="/api", tags=["rooms"])
 app.include_router(teachers.router, prefix="/api", tags=["teachers"])
 app.include_router(ingest.router, prefix="/api", tags=["ingest"])
+app.include_router(internships.router, prefix="/api", tags=["internships"])
 
 
 @app.exception_handler(StarletteHTTPException)

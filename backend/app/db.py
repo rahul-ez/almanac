@@ -484,3 +484,28 @@ def insert_attendance(
         },
     )
     return attendance_id
+
+
+# =============================================================================
+# Reads: internships
+# =============================================================================
+def get_internships(open_only: bool = True) -> list[dict[str, Any]]:
+    """Returns internship opportunities from Delta Lake."""
+    where = "WHERE status = 'open'" if open_only else ""
+    sql = f"""
+        SELECT
+            internship_id,
+            company_name,
+            role_title,
+            location,
+            stipend,
+            eligibility,
+            deadline_ts,
+            apply_url,
+            status
+        FROM {SCHEMA}.internships
+        {where}
+        ORDER BY deadline_ts ASC
+    """
+    return _query(sql)
+

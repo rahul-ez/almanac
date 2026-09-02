@@ -1,20 +1,20 @@
 // frontend/src/pages/NewsletterHome.tsx
-// Newsletter Home: PageHeader + Section (events) + Section (room availability).
+// Newsletter Home: PageHeader + Section (events) + Section (internships) + Section (room availability).
 // 15s polling paused on visibilitychange (tab hidden).
-// Per ui-registry.md and build-plan.md.
 
 import { useEffect, useRef, useState } from "react";
 import { Container } from "../components/layout/Container";
 import { PageHeader } from "../components/layout/PageHeader";
 import { Section } from "../components/layout/Section";
 import { EventCard } from "../components/campus/EventCard";
+import { InternshipCard } from "../components/campus/InternshipCard";
 import { RoomAvailabilityTable } from "../components/campus/RoomAvailabilityTable";
 import { Skeleton } from "../components/loading/Skeleton";
 import { Banner } from "../components/data/Banner";
 import { FreshnessStamp } from "../components/loading/FreshnessStamp";
 import { SegmentedControl } from "../components/primitives/SegmentedControl";
-import { listEvents, getRoomAvailability } from "../api/client";
-import type { EventSummary, FreeRoom } from "../api/client";
+import { listEvents, getRoomAvailability, listInternships } from "../api/client";
+import type { EventSummary, FreeRoom, InternshipSummary } from "../api/client";
 
 const POLL_INTERVAL_MS = 15_000;
 const ROOM_TYPE_OPTIONS = [
@@ -28,6 +28,8 @@ const ROOM_TYPE_OPTIONS = [
 export function NewsletterHome() {
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const [eventsError, setEventsError] = useState<string | null>(null);
+  const [internships, setInternships] = useState<InternshipSummary[] | null>(null);
+  const [internshipsError, setInternshipsError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<FreeRoom[] | null>(null);
   const [roomsError, setRoomsError] = useState<string | null>(null);
   const [roomTypeFilter, setRoomTypeFilter] = useState("all");
@@ -36,8 +38,9 @@ export function NewsletterHome() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function fetchAll() {
-    const [evRes, roomRes] = await Promise.allSettled([
+    const [evRes, intRes, roomRes] = await Promise.allSettled([
       listEvents(true),
+      listInternships(true),
       getRoomAvailability(
         undefined,
         roomTypeFilter === "all" ? undefined : roomTypeFilter
@@ -56,6 +59,19 @@ export function NewsletterHome() {
       }
     } else {
       setEventsError("Couldn't load events — try again shortly.");
+      anyError = true;
+    }
+
+    if (intRes.status === "fulfilled") {
+      if (intRes.value.error) {
+        setInternshipsError(intRes.value.error);
+        anyError = true;
+      } else {
+        setInternships(intRes.value.internships);
+        setInternshipsError(null);
+      }
+    } else {
+      setInternshipsError("Couldn't load internships — try again shortly.");
       anyError = true;
     }
 
@@ -106,13 +122,14 @@ export function NewsletterHome() {
   }, [roomTypeFilter]);
 
   const eventsLoading = events === null && !eventsError;
+  const internshipsLoading = internships === null && !internshipsError;
   const roomsLoading = rooms === null && !roomsError;
 
   return (
     <Container className="py-8 flex flex-col gap-8">
       <PageHeader
         title="Campus Today"
-        description="Live events, room availability, and everything happening on campus."
+        description="Live events, room availability, and internship opportunities across campus."
         actionSlot={
           <FreshnessStamp
             lastUpdatedAt={lastUpdated}
@@ -143,6 +160,35 @@ export function NewsletterHome() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {events.map((event) => (
               <EventCard key={event.event_id} event={event} />
+            ))}
+          </div>
+        )}
+      </Section>
+
+      {/* Internships & Opportunities section */}
+      <Section
+        id="internships"
+        title="Internships & Opportunities"
+        description="Active job roles, research fellowships, and summer internships"
+      >
+        {internshipsLoading && <Skeleton variant="card" count={3} />}
+        {internshipsError && (
+          <Banner variant="error" title="Opportunities unavailable">
+            {internshipsError}
+          </Banner>
+        )}
+        {internships && !internshipsError && internships.length === 0 && (
+          <p className="text-body text-text-muted py-6 text-center">
+            No open internships right now. Check back soon.
+          </p>
+        )}
+        {internships && !internshipsError && internships.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {internships.map((internship) => (
+              <InternshipCard
+                key={internship.internship_id}
+                internship={internship}
+              />
             ))}
           </div>
         )}
