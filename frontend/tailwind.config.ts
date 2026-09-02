@@ -2,7 +2,7 @@ import type { Config } from "tailwindcss";
 
 // frontend/tailwind.config.ts
 // Extends Tailwind's theme to reference CSS variables from tokens.css.
-// Values are references, not hardcoded duplicates — per ui-tokens.md §Implementation Format.
+// Values are references, not hardcoded duplicates.
 
 const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
@@ -16,6 +16,7 @@ const config: Config = {
         primary: {
           DEFAULT: "var(--color-primary)",
           hover: "var(--color-primary-hover)",
+          mid: "var(--color-primary-mid)",
           subtle: "var(--color-primary-subtle)",
         },
         accent: {
@@ -48,17 +49,18 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+        display: ["Playfair Display", "Georgia", "Times New Roman", "serif"],
+        sans: ["Public Sans", "Segoe UI", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
         mono: ["ui-monospace", "Cascadia Code", "SFMono-Regular", "Consolas", "monospace"],
       },
       fontSize: {
-        display: ["32px", { lineHeight: "40px", fontWeight: "700" }],
-        h1:      ["24px", { lineHeight: "32px", fontWeight: "700" }],
-        h2:      ["19px", { lineHeight: "28px", fontWeight: "600" }],
-        h3:      ["16px", { lineHeight: "24px", fontWeight: "600" }],
-        body:    ["15px", { lineHeight: "22px", fontWeight: "400" }],
-        "body-medium": ["15px", { lineHeight: "22px", fontWeight: "500" }],
-        label:   ["13px", { lineHeight: "18px", fontWeight: "500" }],
+        display: ["38px", { lineHeight: "44px", fontWeight: "600", letterSpacing: "-0.01em" }],
+        h1:      ["26px", { lineHeight: "34px", fontWeight: "600", letterSpacing: "-0.005em" }],
+        h2:      ["20px", { lineHeight: "28px", fontWeight: "500" }],
+        h3:      ["15px", { lineHeight: "22px", fontWeight: "600" }],
+        body:    ["15px", { lineHeight: "24px", fontWeight: "400" }],
+        "body-medium": ["15px", { lineHeight: "24px", fontWeight: "500" }],
+        label:   ["13px", { lineHeight: "18px", fontWeight: "600" }],
         caption: ["12px", { lineHeight: "16px", fontWeight: "400" }],
         mono:    ["13px", { lineHeight: "20px", fontWeight: "400" }],
       },

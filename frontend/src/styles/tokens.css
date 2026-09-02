@@ -1,74 +1,81 @@
 /* =============================================================
-   Campus Companion — Design Tokens
-   Source of truth: context/ui-tokens.md
-   All CSS custom properties defined here. No component may
-   define a competing hex/px/duration value.
+   Almanac — Design Tokens
+   Source of truth: campus-companion-redesign-spec.md & ui-tokens.md
+   All CSS custom properties defined here.
    ============================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Public+Sans:wght@400;500;600;700&display=swap');
 
 :root {
+  /* ── Typography Families ───────────────────────────────────── */
+  --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-sans:    "Public Sans", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
   /* ── Color System ─────────────────────────────────────────── */
-  --color-bg:               #F7F8FA;
+  /* Brand blues */
+  --color-primary-subtle:   #E3F2FD;
+  --color-primary-mid:      #90CAF9;
+  --color-primary:          #2196F3;
+  --color-primary-hover:    #0D47A1;
+
+  /* Neutrals */
+  --color-bg:               #F6FAFE;
   --color-surface:          #FFFFFF;
   --color-surface-elevated: #FFFFFF;
-  --color-surface-sunken:   #EEF0F3;
+  --color-surface-sunken:   #E3F2FD;
 
-  --color-primary:          #3949AB;
-  --color-primary-hover:    #2E3A8C;
-  --color-primary-subtle:   #E8EAF6;
+  --color-text:             #10233D;
+  --color-text-muted:       #4E6079;
+  --color-text-disabled:    #9AACC2;
 
-  --color-accent:           #F59E0B;
-  --color-accent-text:      #92400E;
-  --color-accent-subtle:    #FEF3C7;
+  --color-border:           #D7E4F2;
+  --color-divider:          #E6EEF7;
+  --color-focus-ring:       #2196F3;
 
-  --color-text:             #1A1D23;
-  --color-text-muted:       #5B616E;
-  --color-text-disabled:    #9AA0AC;
+  /* Accent (live / happening now only) */
+  --color-accent:           #E8912D;
+  --color-accent-text:      #8A4B08;
+  --color-accent-subtle:    #FBEADB;
 
-  --color-border:           #DDE1E6;
-  --color-divider:          #E9ECEF;
-
-  --color-success:          #1E8E5A;
+  /* Semantic states */
+  --color-success:          #1F8A5A;
   --color-success-subtle:   #E3F5EC;
-  --color-warning:          #B45309;
-  --color-warning-subtle:   #FEF3E2;
-  --color-error:            #C0341D;
-  --color-error-subtle:     #FBE9E6;
-  --color-info:             #0E7490;
-  --color-info-subtle:      #E1F3F6;
+  --color-warning:          #8A4B08;
+  --color-warning-subtle:   #FBEADB;
+  --color-error:            #C1402C;
+  --color-error-subtle:     #FBE7E3;
+  --color-info:             #0D47A1;
+  --color-info-subtle:      #E3F2FD;
 
-  --color-focus-ring:       #3949AB;
+  /* ── Typography Scale ─────────────────────────────────────── */
+  --text-display-size:      38px;
+  --text-display-lh:        44px;
+  --text-display-weight:    600;
 
-  /* ── Typography ───────────────────────────────────────────── */
-  /* Size / line-height pairs — consumed as font-size + line-height */
-  --text-display-size:      32px;
-  --text-display-lh:        40px;
-  --text-display-weight:    700;
+  --text-h1-size:           26px;
+  --text-h1-lh:             34px;
+  --text-h1-weight:         600;
 
-  --text-h1-size:           24px;
-  --text-h1-lh:             32px;
-  --text-h1-weight:         700;
-
-  --text-h2-size:           19px;
+  --text-h2-size:           20px;
   --text-h2-lh:             28px;
-  --text-h2-weight:         600;
+  --text-h2-weight:         500;
 
-  --text-h3-size:           16px;
-  --text-h3-lh:             24px;
+  --text-h3-size:           15px;
+  --text-h3-lh:             22px;
   --text-h3-weight:         600;
 
   --text-body-size:         15px;
-  --text-body-lh:           22px;
+  --text-body-lh:           24px;
   --text-body-weight:       400;
 
   --text-body-medium-size:  15px;
-  --text-body-medium-lh:    22px;
+  --text-body-medium-lh:    24px;
   --text-body-medium-weight:500;
 
   --text-label-size:        13px;
   --text-label-lh:          18px;
-  --text-label-weight:      500;
+  --text-label-weight:      600;
 
   --text-caption-size:      12px;
   --text-caption-lh:        16px;
@@ -111,11 +118,11 @@
   --radius-lg:     16px;
   --radius-full:   9999px;
 
-  /* ── Elevation / Shadows ──────────────────────────────────── */
+  /* ── Elevation / Navy-Tinted Shadows ──────────────────────── */
   --shadow-none:     none;
-  --shadow-raised:   0 1px 2px rgba(16, 24, 40, 0.06);
-  --shadow-elevated: 0 4px 12px rgba(16, 24, 40, 0.10);
-  --shadow-modal:    0 12px 32px rgba(16, 24, 40, 0.18);
+  --shadow-raised:   0 1px 2px rgba(13, 71, 161, 0.08);
+  --shadow-elevated: 0 4px 14px rgba(13, 71, 161, 0.14);
+  --shadow-modal:    0 14px 34px rgba(13, 71, 161, 0.22);
 
   /* ── Motion ───────────────────────────────────────────────── */
   --duration-fast:      120ms;
@@ -146,7 +153,7 @@ body {
   min-height: 100%;
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: var(--text-body-size);
   line-height: var(--text-body-lh);
   -webkit-font-smoothing: antialiased;

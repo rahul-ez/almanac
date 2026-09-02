@@ -1,6 +1,8 @@
 // frontend/src/components/primitives/SegmentedControl.tsx
 // role="radiogroup" semantics. Used for room-type filter only.
-// Per ui-registry.md: options: All / Classroom / Lab / Auditorium / Study room.
+// Per campus-companion-redesign-spec.md §5.4:
+// Selected segment uses --color-primary-subtle fill and --color-primary text.
+// Unselected segments use --color-border outline. No drop shadows.
 
 interface SegmentedControlProps {
   id: string;
@@ -18,8 +20,12 @@ export function SegmentedControl({
   onChange,
 }: SegmentedControlProps) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-md border border-border bg-surface overflow-hidden">
-      {options.map((opt, i) => {
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="inline-flex rounded-md border border-border bg-surface p-0.5"
+    >
+      {options.map((opt) => {
         const isSelected = opt.value === value;
         const btnId = `${id}-${opt.value}`;
         return (
@@ -30,12 +36,11 @@ export function SegmentedControl({
             aria-checked={isSelected}
             onClick={() => onChange(opt.value)}
             className={[
-              "px-3 py-1.5 text-label font-medium transition-colors duration-fast ease-standard",
+              "px-3 py-1.5 rounded text-label font-medium transition-colors duration-fast ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
-              i > 0 ? "border-l border-border" : "",
               isSelected
-                ? "bg-primary text-surface"
-                : "text-text-muted hover:bg-surface-sunken",
+                ? "bg-primary-subtle text-primary font-semibold"
+                : "text-text-muted hover:bg-surface-sunken hover:text-text",
             ].join(" ")}
           >
             {opt.label}

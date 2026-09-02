@@ -1,15 +1,14 @@
 // frontend/src/components/genie/GenieChatContainer.tsx
-// The one bounded Genie panel. Per ui-registry.md: --radius-lg border,
-// --space-6 interior padding, one polite live region.
-// Empty state shows 4 suggested question chips.
-// Scroll to bottom on new messages.
+// The one bounded Genie panel.
+// Per campus-companion-redesign-spec.md §4 & §5:
+// Empty state leads directly with typography (no mascot icon).
+// Heading pulled to upper third of container with suggested chips below.
 
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "../../hooks/useGenieConversation";
 import { GenieMessage } from "./GenieMessage";
 import { GenieQueryInput } from "./GenieQueryInput";
 import { SuggestedQuestionChip } from "./SuggestedQuestionChip";
-import { Sparkles } from "lucide-react";
 
 const SUGGESTED_QUESTIONS = [
   "Is Lab 204 available right now?",
@@ -46,20 +45,19 @@ export function GenieChatContainer({ messages, isLoading, onSend }: GenieChatCon
         aria-label="Genie conversation"
       >
         {isEmpty ? (
-          /* Empty state */
-          <div className="flex flex-col items-center justify-center h-full gap-6 py-8">
-            <div className="flex flex-col items-center gap-3 text-center max-w-sm">
-              <div className="w-12 h-12 rounded-full bg-primary-subtle flex items-center justify-center">
-                <Sparkles size={24} className="text-primary" aria-hidden="true" />
-              </div>
-              <h2 className="text-h2 font-semibold text-text">Ask Genie</h2>
+          /* Empty state — leads with typography, no mascot icon */
+          <div className="flex flex-col items-center justify-start h-full gap-6 pt-12 pb-8">
+            <div className="flex flex-col items-center gap-2 text-center max-w-md">
+              <h2 className="font-display text-h1 font-semibold text-text">
+                Ask Genie
+              </h2>
               <p className="text-body text-text-muted">
                 Ask any campus question in plain English — room availability, teacher schedules,
                 event attendance, and more.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex flex-wrap gap-2 justify-center max-w-lg">
               {SUGGESTED_QUESTIONS.map((q) => (
                 <SuggestedQuestionChip
                   key={q}

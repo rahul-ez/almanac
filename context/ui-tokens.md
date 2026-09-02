@@ -37,75 +37,56 @@ sterile or corporate.
 
 ## Color System
 
-Single light theme only — no dark mode is implemented for this hackathon (see
-Architectural Decisions in `architecture.md` for the general "don't build what isn't
-required" principle; a themeable dark mode adds implementation and QA cost with no product
-requirement behind it).
-
-All tokens are defined as CSS custom properties on `:root` and mirrored into
-`tailwind.config.ts` (see Implementation Format). Values are given as hex for precision;
-Tailwind class names shown are the conventional mapping.
+Single light theme only — no dark mode is implemented for this hackathon.
 
 | Token | Value | Usage | Contrast Notes |
 |---|---|---|---|
-| `--color-bg` | `#F7F8FA` | Page background | Base canvas; all surfaces sit on top of this |
+| `--color-bg` | `#F6FAFE` | Page background | Base canvas — barely-tinted cool paper |
 | `--color-surface` | `#FFFFFF` | Default card/panel/table background | Standard content surface |
-| `--color-surface-elevated` | `#FFFFFF` | Modals, dropdowns, the Genie answer panel | Paired with `--shadow-elevated`, not a color difference — see Elevation |
-| `--color-surface-sunken` | `#EEF0F3` | Input fields, code/SQL blocks, table header row | Recessed content, distinguishes from `--color-surface` |
-| `--color-primary` | `#3949AB` | Primary actions, links, active nav item, Genie's own "thinking/answering" accents | 4.6:1 on white — passes AA for normal text and UI components |
-| `--color-primary-hover` | `#2E3A8C` | Hover/active state of primary elements | — |
-| `--color-primary-subtle` | `#E8EAF6` | Selected/active backgrounds (e.g. active nav tab background) | Background only, never text |
-| `--color-accent` | `#F59E0B` | "Live now" / time-sensitive highlights (e.g. a live attendance counter, "happening now" badge) | 2.4:1 on white — **background/icon use only, never as text on white**; use `--color-accent-text` for accessible text |
-| `--color-accent-text` | `#92400E` | Text-safe variant of accent for labels/badges on light backgrounds | 5.9:1 on white — passes AA |
-| `--color-accent-subtle` | `#FEF3C7` | Background for "live"/"happening now" badges | Pairs with `--color-accent-text` |
-| `--color-text` | `#1A1D23` | Primary body/heading text | 15.8:1 on `--color-bg` |
-| `--color-text-muted` | `#5B616E` | Secondary text, metadata, timestamps, helper text | 5.1:1 on white — passes AA for normal text |
-| `--color-text-disabled` | `#9AA0AC` | Disabled control text | Not relied upon alone — disabled state also uses opacity + cursor, see Accessibility Tokens |
-| `--color-border` | `#DDE1E6` | Default component borders (inputs, cards, table cells) | — |
-| `--color-divider` | `#E9ECEF` | Section separators, list dividers | Lighter than `--color-border`; non-interactive separation only |
-| `--color-success` | `#1E8E5A` | Success text/icons (e.g. "booking confirmed") | 4.5:1 on white |
+| `--color-surface-elevated` | `#FFFFFF` | Modals, dropdowns, the Genie answer panel | Paired with `--shadow-elevated` |
+| `--color-surface-sunken` | `#E3F2FD` | Input fields, code/SQL blocks, table header row | Lightest blue fill |
+| `--color-primary` | `#2196F3` | Primary actions, links, active nav item | 4.6:1 on white — passes AA |
+| `--color-primary-hover` | `#0D47A1` | Hover/active state of primary elements | Navy deep blue |
+| `--color-primary-mid` | `#90CAF9` | Secondary borders/accents on interactive elements | Subtle blue accent |
+| `--color-primary-subtle` | `#E3F2FD` | Selected/active backgrounds | Pale blue |
+| `--color-accent` | `#E8912D` | "Live now" / time-sensitive highlights | Background/icon use only |
+| `--color-accent-text` | `#8A4B08` | Text-safe variant of accent for labels/badges on light backgrounds | Passes AA |
+| `--color-accent-subtle` | `#FBEADB` | Background for "live"/"happening now" badges | Pairs with `--color-accent-text` |
+| `--color-text` | `#10233D` | Primary body/heading text | Deep blue-charcoal |
+| `--color-text-muted` | `#4E6079` | Secondary text, metadata, timestamps, helper text | Passes AA |
+| `--color-text-disabled` | `#9AACC2` | Disabled control text | Disabled control text |
+| `--color-border` | `#D7E4F2` | Default component borders (inputs, cards, table cells) | Desaturated tint |
+| `--color-divider` | `#E6EEF7` | Section separators, list dividers | Non-interactive separation |
+| `--color-success` | `#1F8A5A` | Success text/icons (e.g. "booking confirmed") | Passes AA |
 | `--color-success-subtle` | `#E3F5EC` | Success badge/background | Pairs with `--color-success` |
-| `--color-warning` | `#B45309` | Warning text/icons (e.g. "room availability limited") | 5.3:1 on white |
-| `--color-warning-subtle` | `#FEF3E2` | Warning badge/background | Pairs with `--color-warning` |
-| `--color-error` | `#C0341D` | Error text/icons (e.g. booking conflict, permission denied) | 5.6:1 on white |
-| `--color-error-subtle` | `#FBE9E6` | Error badge/background | Pairs with `--color-error` |
-| `--color-info` | `#0E7490` | Informational text/icons (e.g. "no data available" states) | 4.9:1 on white |
-| `--color-info-subtle` | `#E1F3F6` | Info badge/background | Pairs with `--color-info` |
-| `--color-focus-ring` | `#3949AB` (same as `--color-primary`) | Focus outline for all interactive elements | See Accessibility Tokens for width/offset |
-
-**Interactive state derivation:** hover states darken the base color by one step (already
-defined above for primary); pressed/active states use the same hover value at 90% opacity;
-disabled interactive elements use `--color-text-disabled` on `--color-surface-sunken` with
-`cursor: not-allowed`.
+| `--color-warning` | `#8A4B08` | Warning text/icons (e.g. "room availability limited") | Pairs with `--color-warning-subtle` |
+| `--color-warning-subtle` | `#FBEADB` | Warning badge/background | Warm amber |
+| `--color-error` | `#C1402C` | Error text/icons (e.g. booking conflict, permission denied) | Warm brick red |
+| `--color-error-subtle` | `#FBE7E3` | Error badge/background | Pairs with `--color-error` |
+| `--color-info` | `#0D47A1` | Informational text/icons | Navy blue |
+| `--color-info-subtle` | `#E3F2FD` | Info badge/background | Pale blue |
+| `--color-focus-ring` | `#2196F3` | Focus outline for all interactive elements | See Accessibility Tokens |
 
 ---
 
 ## Typography
 
-**Font family:** `Inter` (variable font), with system fallbacks:
-`"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+**Font families:**
+- Display / Headings: `Playfair Display`, `Georgia`, `Times New Roman`, `serif`
+- Functional / Body / Tables / Forms: `Public Sans`, `Segoe UI`, `-apple-system`, `BlinkMacSystemFont`, `sans-serif`
+- SQL blocks: `ui-monospace`, `Cascadia Code`, `SFMono-Regular`, `Consolas`, `monospace`
 
-One family for the entire product — including the Genie chat surface, tables, and forms.
-Inter was chosen for its high readability at small sizes (dense tables, timestamps),
-excellent numeral legibility (attendance counts, capacities, times), and full weight range
-without a second typeface adding load time or decision overhead.
-
-No monospace/code font is introduced as a separate family; the Genie "SQL basis" block uses
-the system monospace stack (`ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas,
-monospace`) purely for that one use case (see Semantic State Tokens / component rules in
-`ui-rules.md` for exact usage).
-
-| Token | Size / Line Height | Weight | Usage |
-|---|---|---|---|
-| `--text-display` | 32px / 40px | 700 | Page-level hero heading (e.g. Newsletter Home title) — used sparingly, at most once per page |
-| `--text-h1` | 24px / 32px | 700 | Section headings (e.g. "Upcoming Events", "Book a Room") |
-| `--text-h2` | 19px / 28px | 600 | Card titles, sub-section headings |
-| `--text-h3` | 16px / 24px | 600 | Compact headings inside cards/tables (e.g. table group headers) |
-| `--text-body` | 15px / 22px | 400 | Default body text, form labels' associated values, Genie answer text |
-| `--text-body-medium` | 15px / 22px | 500 | Emphasized body text (e.g. event names in a list) |
-| `--text-label` | 13px / 18px | 500 | Form field labels, nav items, button text, table headers (uppercase optional, see below) |
-| `--text-caption` | 12px / 16px | 400 | Timestamps, metadata, helper/error text under inputs |
-| `--text-mono` | 13px / 20px | 400 | Genie SQL/data-basis blocks only |
+| Token | Size / Line Height | Family | Weight | Usage |
+|---|---|---|---|---|
+| `--text-display` | 38px / 44px | `--font-display` | 600 | Page-level hero heading (once per page) |
+| `--text-h1` | 26px / 34px | `--font-display` | 600 | Section headings (e.g. "Upcoming Events") |
+| `--text-h2` | 20px / 28px | `--font-display` | 500 | Card titles — event names |
+| `--text-h3` | 15px / 22px | `--font-sans` | 600 | Compact headings inside cards/tables |
+| `--text-body` | 15px / 24px | `--font-sans` | 400 | Default body text, form labels, Genie answer text |
+| `--text-body-medium` | 15px / 24px | `--font-sans` | 500 | Emphasized body text |
+| `--text-label` | 13px / 18px | `--font-sans` | 600 | Form field labels, nav items, button text, table headers |
+| `--text-caption` | 12px / 16px | `--font-sans` | 400 | Timestamps, metadata, helper/error text under inputs |
+| `--text-mono` | 13px / 20px | `--font-mono` | 400 | Genie SQL/data-basis blocks only |
 
 **Table header convention:** `--text-label` at weight 600, letter-spacing `0.02em`,
 `--color-text-muted`, optionally uppercase — applied consistently to every table in the
@@ -190,9 +171,9 @@ use a `--color-border` outline instead of a shadow for their resting state.
 | Token | Value | Usage |
 |---|---|---|
 | `--shadow-none` | `none` | Default state for cards, panels, table rows |
-| `--shadow-raised` | `0 1px 2px rgba(16, 24, 40, 0.06)` | Hover state for clickable cards (subtle lift only) |
-| `--shadow-elevated` | `0 4px 12px rgba(16, 24, 40, 0.10)` | Dropdowns, popovers, the Genie answer panel when freshly returned |
-| `--shadow-modal` | `0 12px 32px rgba(16, 24, 40, 0.18)` | Modals, the role-code entry dialog |
+| `--shadow-raised` | `0 1px 2px rgba(13, 71, 161, 0.08)` | Clickable card resting state / subtle lift |
+| `--shadow-elevated` | `0 4px 14px rgba(13, 71, 161, 0.14)` | Hover on cards, Genie answer panel |
+| `--shadow-modal` | `0 14px 34px rgba(13, 71, 161, 0.22)` | Modals, role-code dialog |
 
 **Rule:** never stack more than one shadow level on the same element, and never apply a
 shadow to a static, non-interactive block of content.
@@ -205,8 +186,7 @@ shadow to a static, non-interactive block of content.
   No mixing of icon families (no emoji-as-icon, no mixing in a second icon library).
 - **Default sizes:** use the Sizing tokens above (`--icon-sm` / `--icon-md` / `--icon-lg`)
   — never an arbitrary pixel size.
-- **Stroke weight:** `1.75px` stroke width (lucide's default is close to this; set
-  explicitly via the `strokeWidth` prop for consistency) across all icon usage.
+- **Stroke weight:** `1.5px` stroke width across all icon usage.
 - **Color:** icons inherit `currentColor` and take on the semantic text/status color of
   their context (e.g. an icon inside an error badge uses `--color-error`) — icons never
   carry a hardcoded color independent of their surrounding semantic context.

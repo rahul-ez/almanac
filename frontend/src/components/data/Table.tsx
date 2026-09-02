@@ -1,5 +1,6 @@
 // frontend/src/components/data/Table.tsx
-// Per ui-registry.md: known-shape / arbitrary-shape variants.
+// Per ui-registry.md & campus-companion-redesign-spec.md §5.8:
+// Header row uses --color-surface-sunken (pale blue) with --text-label at 600 weight.
 // Real table/thead/th scope="col" markup. aria-labelledby → Section heading.
 
 import type { ReactNode } from "react";
@@ -28,7 +29,7 @@ export function Table({
   emptyMessage = "No data available.",
 }: TableProps) {
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
+    <div className="overflow-x-auto rounded-md border border-border bg-surface">
       <table
         className="w-full border-collapse text-body"
         aria-labelledby={labelledById}
@@ -44,7 +45,7 @@ export function Table({
               <th
                 key={col.key}
                 scope="col"
-                className="px-4 h-table-row text-left text-label font-medium text-text-muted whitespace-nowrap"
+                className="px-4 h-table-row text-left text-label font-semibold text-text whitespace-nowrap"
               >
                 {col.header}
               </th>

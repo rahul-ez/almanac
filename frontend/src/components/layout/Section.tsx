@@ -1,6 +1,6 @@
 // frontend/src/components/layout/Section.tsx
 // Named content region — the unit pages are built from (at most 4 per page).
-// Per ui-registry.md: h2 at --text-h1 size, --space-8 between sections,
+// Per ui-registry.md: h2 at --text-h1 size (Playfair Display, 600), --space-8 between sections,
 // independent loading/empty/error states so one failure never blanks the page.
 
 import type { ReactNode } from "react";
@@ -22,7 +22,7 @@ export function Section({ title, description, controlRow, children, id }: Sectio
       <div className="flex flex-col gap-1 mb-4">
         <h2
           id={headingId}
-          className="text-h1 font-bold text-text"
+          className="font-display text-h1 font-semibold text-text"
         >
           {title}
         </h2>

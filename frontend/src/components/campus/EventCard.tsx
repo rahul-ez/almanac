@@ -1,7 +1,8 @@
 // frontend/src/components/campus/EventCard.tsx
-// Per ui-registry.md: upcoming / ongoing / cancelled / completed variants.
-// Upcoming = clickable (single stretched link, no nested interactives).
-// Others = static display.
+// Per ui-registry.md & campus-companion-redesign-spec.md:
+// Event name in --text-h2 (Playfair Display, 500). Everything else in Public Sans.
+// Status badge + club name on one baseline.
+// Upcoming = clickable (single stretched link).
 
 import { Calendar, MapPin } from "lucide-react";
 import type { EventSummary } from "../../api/client";
@@ -29,20 +30,20 @@ export function EventCard({ event }: EventCardProps) {
 
   const cardContent = (
     <>
-      {/* Header row: status + club */}
-      <div className="flex items-center justify-between gap-2">
+      {/* Header row: status + club on one baseline */}
+      <div className="flex items-center justify-between gap-2 h-6">
         <StatusIndicator state={currentStatus} />
         <span className="text-caption text-text-muted truncate">{event.club}</span>
       </div>
 
-      {/* Event name */}
-      <h3 className="text-h3 font-semibold text-text leading-snug line-clamp-2">
+      {/* Event name — only serif element in card */}
+      <h3 className="font-display text-h2 font-medium text-text leading-snug line-clamp-2">
         {event.name}
       </h3>
 
       {/* Meta: date + time */}
       <div className="flex items-center gap-1.5 text-label text-text-muted">
-        <Calendar size={14} aria-hidden="true" />
+        <Calendar size={14} strokeWidth={1.5} aria-hidden="true" />
         <span>{formatDate(event.start_ts)}</span>
         <span className="text-divider">·</span>
         <span>{formatTime(event.start_ts)}</span>
@@ -51,13 +52,13 @@ export function EventCard({ event }: EventCardProps) {
       {/* Room */}
       {event.room && (
         <div className="flex items-center gap-1.5 text-label text-text-muted">
-          <MapPin size={14} aria-hidden="true" />
+          <MapPin size={14} strokeWidth={1.5} aria-hidden="true" />
           <span>{event.room}</span>
         </div>
       )}
 
       {/* Attendance */}
-      <div className="mt-auto pt-1 border-t border-divider">
+      <div className="mt-auto pt-2 border-t border-divider">
         <LiveUpdateHighlight value={event.attendance_count}>
           <AttendanceDatum count={event.attendance_count} isLive={isLive} />
         </LiveUpdateHighlight>
