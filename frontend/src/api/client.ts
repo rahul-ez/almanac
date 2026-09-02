@@ -96,8 +96,8 @@ export interface CreateEventResponse {
 }
 
 // ── Mock flag ─────────────────────────────────────────────────────────────────
-// Swap to false once the Backend is live at /api.
-const USE_MOCK = true;
+// Defaults to false (connecting to live Backend at /api). Set VITE_USE_MOCK=true for mock UI development.
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

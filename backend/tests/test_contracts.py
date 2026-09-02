@@ -307,3 +307,12 @@ class TestIngestAttendance:
         resp = client.post("/api/ingest/attendance", json=self.VALID_BODY)
         assert resp.status_code == 404
         assert resp.json() == {"status": "unknown_event"}
+
+
+# --- Static Frontend ---------------------------------------------------------
+class TestStaticFrontend:
+    def test_root_serves_frontend_html(self, client: TestClient):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert "<!doctype html>" in resp.text.lower()
+        assert '<div id="root">' in resp.text

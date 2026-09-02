@@ -2,7 +2,6 @@
 // arbitrary-shape Table. Capped at 20 rows. Horizontally scrollable.
 // Per ui-registry.md.
 
-import type { ReactNode } from "react";
 
 interface GenieResultTableProps {
   rows: Record<string, unknown>[];

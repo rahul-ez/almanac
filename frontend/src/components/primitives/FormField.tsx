@@ -15,11 +15,11 @@ interface BaseFieldProps {
   required?: boolean;
 }
 
-interface InputFieldProps extends BaseFieldProps, InputHTMLAttributes<HTMLInputElement> {
+interface InputFieldProps extends BaseFieldProps, Omit<InputHTMLAttributes<HTMLInputElement>, "id"> {
   variant: InputVariant;
 }
 
-interface SelectFieldProps extends BaseFieldProps, SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectFieldProps extends BaseFieldProps, Omit<SelectHTMLAttributes<HTMLSelectElement>, "id"> {
   variant: "select";
   options: { value: string; label: string }[];
 }
