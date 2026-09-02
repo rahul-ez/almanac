@@ -44,7 +44,7 @@ def _load_settings() -> Settings:
         databricks_host=os.environ.get("DATABRICKS_HOST"),
         databricks_token=os.environ.get("DATABRICKS_TOKEN"),
         sql_warehouse_id=_require("SQL_WAREHOUSE_ID"),
-        genie_space_id=_require("GENIE_SPACE_ID"),
+        genie_space_id=os.environ.get("GENIE_SPACE_ID", ""),
         unity_catalog_schema=_require("UNITY_CATALOG_SCHEMA"),
         council_access_code=_require("COUNCIL_ACCESS_CODE"),
         session_signing_secret=_require("SESSION_SIGNING_SECRET"),
