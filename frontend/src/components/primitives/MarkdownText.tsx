@@ -1,14 +1,16 @@
 // frontend/src/components/primitives/MarkdownText.tsx
 // Renders markdown text from Genie (bold, italics, code, bullet lists, links, paragraphs).
+// Supports in-app event registration links like [Register for AI Workshop](#register:evt_001).
 
 import React from "react";
 
 interface MarkdownTextProps {
   content: string;
   className?: string;
+  onRegisterClick?: (eventId: string) => void;
 }
 
-function renderInline(text: string): React.ReactNode[] {
+function renderInline(text: string, onRegisterClick?: (eventId: string) => void): React.ReactNode[] {
   // Regex to match **bold**, *italic*, `code`, [link](url)
   const regex = /(\*\*[^*]+?\*\*|\*[^*]+?\*|`[^`]+?`|\[[^\]]+?\]\([^)]+?\))/g;
   const parts = text.split(regex);
@@ -33,15 +35,33 @@ function renderInline(text: string): React.ReactNode[] {
     }
     const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (linkMatch) {
+      const label = linkMatch[1];
+      const url = linkMatch[2];
+
+      // If it's an in-app registration link (#register:evt_xxx or register?event=evt_xxx)
+      if (url.startsWith("#register:") && onRegisterClick) {
+        const eventId = url.replace("#register:", "").trim();
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onRegisterClick(eventId)}
+            className="text-primary underline hover:text-primary-hover font-semibold inline-flex items-center gap-0.5 cursor-pointer"
+          >
+            {label}
+          </button>
+        );
+      }
+
       return (
         <a
           key={i}
-          href={linkMatch[2]}
+          href={url}
           target="_blank"
           rel="noopener noreferrer"
           className="text-primary underline hover:text-primary-hover font-medium"
         >
-          {linkMatch[1]}
+          {label}
         </a>
       );
     }
@@ -49,7 +69,7 @@ function renderInline(text: string): React.ReactNode[] {
   });
 }
 
-export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
+export function MarkdownText({ content, className = "", onRegisterClick }: MarkdownTextProps) {
   if (!content) return null;
 
   // Normalize single linebreaks before list markers to double linebreaks
@@ -75,7 +95,7 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
                 const cleanLine = line.trim().replace(/^[-*]\s+|\d+\.\s+/, "");
                 return (
                   <li key={lIdx} className="leading-relaxed">
-                    {renderInline(cleanLine)}
+                    {renderInline(cleanLine, onRegisterClick)}
                   </li>
                 );
               })}
@@ -85,7 +105,7 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
 
         return (
           <p key={bIdx} className="leading-relaxed">
-            {renderInline(trimmed)}
+            {renderInline(trimmed, onRegisterClick)}
           </p>
         );
       })}

@@ -292,3 +292,30 @@ export async function listInternships(openOnly = true): Promise<ListInternshipsR
   return apiFetch<ListInternshipsResponse>(`/api/internships?open_only=${openOnly}`);
 }
 
+export interface RegisterEventRequest {
+  event_id: string;
+  registrant_name: string;
+  registrant_email: string;
+}
+
+export interface RegisterEventResponse {
+  status: "ok";
+  attendance_id: string;
+  error?: string;
+}
+
+/** Register for an event directly from Almanac UI or Ask Genie link. */
+export async function registerForEvent(payload: RegisterEventRequest): Promise<RegisterEventResponse> {
+  if (USE_MOCK) {
+    return {
+      status: "ok",
+      attendance_id: "att_mock",
+    };
+  }
+  return apiFetch<RegisterEventResponse>("/api/events/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+

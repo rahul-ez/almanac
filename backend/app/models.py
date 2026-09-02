@@ -73,6 +73,17 @@ class CreateEventResponse(BaseModel):
     topic: str | None = None
 
 
+class RegisterEventRequest(BaseModel):
+    event_id: str
+    registrant_name: str
+    registrant_email: str
+
+
+class RegisterEventResponse(BaseModel):
+    status: Literal["ok"]
+    attendance_id: str
+
+
 # --- Rooms -----------------------------------------------------------------
 class RoomSummary(BaseModel):
     room_id: str

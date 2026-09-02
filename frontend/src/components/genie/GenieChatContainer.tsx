@@ -21,9 +21,15 @@ interface GenieChatContainerProps {
   messages: Message[];
   isLoading: boolean;
   onSend: (question: string) => void;
+  onRegisterClick?: (eventId: string) => void;
 }
 
-export function GenieChatContainer({ messages, isLoading, onSend }: GenieChatContainerProps) {
+export function GenieChatContainer({
+  messages,
+  isLoading,
+  onSend,
+  onRegisterClick,
+}: GenieChatContainerProps) {
   const [inputValue, setInputValue] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +81,7 @@ export function GenieChatContainer({ messages, isLoading, onSend }: GenieChatCon
                 key={msg.id}
                 message={msg}
                 isNewest={i === messages.length - 1}
+                onRegisterClick={onRegisterClick}
               />
             ))}
             <div ref={bottomRef} />

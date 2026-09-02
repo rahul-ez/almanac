@@ -9,6 +9,7 @@ import { Section } from "../components/layout/Section";
 import { EventCard } from "../components/campus/EventCard";
 import { InternshipCard } from "../components/campus/InternshipCard";
 import { RoomAvailabilityTable } from "../components/campus/RoomAvailabilityTable";
+import { RegisterModal } from "../components/dialogs/RegisterModal";
 import { Skeleton } from "../components/loading/Skeleton";
 import { Banner } from "../components/data/Banner";
 import { FreshnessStamp } from "../components/loading/FreshnessStamp";
@@ -28,6 +29,7 @@ const ROOM_TYPE_OPTIONS = [
 export function NewsletterHome() {
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const [eventsError, setEventsError] = useState<string | null>(null);
+  const [registeringEvent, setRegisteringEvent] = useState<EventSummary | null>(null);
   const [internships, setInternships] = useState<InternshipSummary[] | null>(null);
   const [internshipsError, setInternshipsError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<FreeRoom[] | null>(null);
@@ -159,7 +161,11 @@ export function NewsletterHome() {
         {events && !eventsError && events.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {events.map((event) => (
-              <EventCard key={event.event_id} event={event} />
+              <EventCard
+                key={event.event_id}
+                event={event}
+                onRegister={setRegisteringEvent}
+              />
             ))}
           </div>
         )}
@@ -223,6 +229,18 @@ export function NewsletterHome() {
           />
         )}
       </Section>
+
+      {/* Quick Event Registration Dialog */}
+      {registeringEvent && (
+        <RegisterModal
+          eventId={registeringEvent.event_id}
+          eventName={registeringEvent.name}
+          onClose={() => setRegisteringEvent(null)}
+          onSuccess={() => {
+            fetchAll(); // Refresh attendance count immediately!
+          }}
+        />
+      )}
     </Container>
   );
 }

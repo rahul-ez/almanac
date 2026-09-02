@@ -1,11 +1,16 @@
-"""GET/POST /api/events — see context/architecture.md's "Contract: List
-events" and "Contract: Create event"."""
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
 
 from app import db
 from app.auth import require_council
-from app.models import CreateEventRequest, CreateEventResponse, EventsResponse
+from app.models import (
+    CreateEventRequest,
+    CreateEventResponse,
+    EventsResponse,
+    RegisterEventRequest,
+    RegisterEventResponse,
+)
 
 router = APIRouter()
 
@@ -17,6 +22,22 @@ def list_events(upcoming: bool = True) -> EventsResponse:
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"events": [], "error": str(exc)})
     return EventsResponse(events=rows)
+
+
+@router.post("/events/register", response_model=RegisterEventResponse, status_code=201)
+def register_event(body: RegisterEventRequest) -> RegisterEventResponse:
+    try:
+        attendance_id = db.insert_attendance(
+            event_id=body.event_id,
+            registrant_name=body.registrant_name,
+            registrant_email=body.registrant_email,
+            registered_at=datetime.now(),
+        )
+    except db.NotFoundError:
+        raise HTTPException(status_code=404, detail={"status": "unknown_event"})
+    except db.WarehouseError as exc:
+        raise HTTPException(status_code=502, detail={"status": "error", "error": str(exc)})
+    return RegisterEventResponse(status="ok", attendance_id=attendance_id)
 
 
 @router.post("/events", response_model=CreateEventResponse, status_code=201)
@@ -33,14 +54,6 @@ def create_event(body: CreateEventRequest, request: Request) -> CreateEventRespo
             room_id=body.room_id,
         )
     except db.NotFoundError as exc:
-        # Not explicitly enumerated in architecture.md's frozen contract for
-        # this endpoint (only 403/502 are documented there) — 422 with a
-        # `{"error": "<reason>"}` body follows the same shape convention used
-        # by the endpoints that DO document an error code, per
-        # data-contracts.md's requirement that an invalid write be rejected
-        # with "the documented error shape" rather than attempted. Flagged in
-        # this workstream's summary as a filled gap, not a silent contract
-        # change.
         raise HTTPException(status_code=422, detail={"error": exc.kind})
     except db.BookingConflictError as exc:
         raise HTTPException(
@@ -50,3 +63,4 @@ def create_event(body: CreateEventRequest, request: Request) -> CreateEventRespo
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"error": str(exc)})
     return CreateEventResponse(**created)
+

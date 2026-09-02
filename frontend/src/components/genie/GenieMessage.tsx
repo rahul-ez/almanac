@@ -13,9 +13,10 @@ import { User, AlertCircle, HelpCircle, Database } from "lucide-react";
 interface GenieMessageProps {
   message: Message;
   isNewest?: boolean;
+  onRegisterClick?: (eventId: string) => void;
 }
 
-export function GenieMessage({ message, isNewest = false }: GenieMessageProps) {
+export function GenieMessage({ message, isNewest = false, onRegisterClick }: GenieMessageProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -114,7 +115,11 @@ export function GenieMessage({ message, isNewest = false }: GenieMessageProps) {
         tabIndex={-1}
         className="max-w-[85%] bg-surface-elevated border border-border rounded-lg px-4 py-3 shadow-elevated"
       >
-        <MarkdownText content={message.content} className="text-body text-text" />
+        <MarkdownText
+          content={message.content}
+          className="text-body text-text"
+          onRegisterClick={onRegisterClick}
+        />
         {message.sql && (
           <GenieEvidenceDisclosure
             sql={message.sql}
