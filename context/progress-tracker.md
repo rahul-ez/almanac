@@ -71,17 +71,17 @@ its actual status — this distinction is the entire point of this tracker.
 
 | Field | Value |
 |---|---|
-| Current phase (per `build-plan.md`'s Phase Breakdown) | Not started — Phase 1: Contract Confirmation and Environment Setup |
-| Current checkpoint | None evaluated yet — next is Checkpoint 1: Shared Foundation Readiness |
-| Overall status | Not started |
+| Current phase (per `build-plan.md`'s Phase Breakdown) | Phase 2/3 boundary — Data Platform's schema/seed/trusted-function are live and verified on a real workspace; Backend is implemented but not yet pointed at that same live workspace; Frontend, Ingestion have not started |
+| Current checkpoint | None formally evaluated yet — next is Checkpoint 2 (First End-to-End Path), once Genie Space + Backend-live wiring are done |
+| Overall status | In progress — Data Platform live and verified; Backend implemented (local tests only, not yet run against the live warehouse); Frontend and Ingestion not started |
 | Hours/stage remaining | Full 12 hours remaining |
-| Core product flow status | Not started |
-| Genie status | Not started — see Genie Readiness |
-| Integration status | No integration attempted yet |
-| Testing status | No tests run yet |
+| Core product flow status | Not started (Genie Space doesn't exist yet — see blockers) |
+| Genie status | Config drafted, schema live and ready to point a Genie Space at; Space itself not yet created — see Genie Readiness |
+| Integration status | Data Platform: schema/seed/trusted function executed and verified against a real Databricks SQL warehouse. Backend: its internal wiring is exercised end-to-end via FastAPI's TestClient, but `db.py`/`genie_client.py` have not yet been run against this same live workspace. |
+| Testing status | Data Platform: all 7 tables, 32 DDL statements, 9 seed INSERTs, and the `room_is_free` trusted function ran successfully live; row counts and all 5 boundary/smoke tests confirmed correct against real data. Backend: 43/43 pytest tests pass, still against mocks. Genie benchmarks not yet run (no Genie Space exists yet). |
 | Deployment status | Not deployed |
-| Current blockers | None recorded yet |
-| Highest-priority next actions | 1. Confirm all four agents have working local toolchains and Databricks/Google access (Checkpoint 1). 2. Data Platform begins schema + seed data. 3. Backend begins router scaffolding against documented mock shapes. 4. Frontend begins token config + shell primitives. 5. Ingestion begins Google Form setup. |
+| Current blockers | Genie Space must be created manually in the UI (no safe programmatic path — see Decision Log); once it exists, Backend needs to be pointed at the same live credentials. See Blockers and Risks. |
+| Highest-priority next actions | 1. Create the Genie Space in the Databricks UI (manual — instructions ready in `data-platform/genie/`), get its Space ID. 2. Run the 10 benchmarks live against it. 3. Set `GENIE_SPACE_ID` in `backend/.env` and re-run Backend's test suite / manual endpoint checks against the real warehouse + Genie Space (Checkpoint 2). 4. Resolve the flagged `club` vs `club_id` contract discrepancy on `POST /api/events` (see Decision Log). 5. Frontend begins token config + shell primitives. 6. Ingestion begins Google Form setup. |
 
 ---
 
@@ -89,20 +89,20 @@ its actual status — this distinction is the entire point of this tracker.
 
 | Workstream | Owner | Task | Status | Dependency | Integration State | Verification | Blocker | Notes |
 |---|---|---|---|---|---|---|---|---|
-| Data Platform | Agent 1 | Schema DDL (7 tables) | Not Started | None | — | — | — | |
-| Data Platform | Agent 1 | Seed data (all Synthetic Data Requirements scenarios) | Not Started | Schema DDL | — | — | — | |
-| Data Platform | Agent 1 | Column/table comments in Unity Catalog | Not Started | Schema DDL | — | — | — | |
-| Data Platform | Agent 1 | `room_is_free(room_id, ts)` trusted function | Not Started | Schema DDL | — | — | — | |
-| Data Platform | Agent 1 | Genie Space configuration (instructions, synonyms) | Not Started | Schema + comments | — | — | — | |
-| Data Platform | Agent 1 | Run + verify 10 benchmark questions | Not Started | Genie Space configured | — | — | — | Gate before Backend integrates real Genie |
-| Backend | Agent 2 | Router scaffolding (all endpoints, mock data) | Not Started | `architecture.md` contracts (frozen) | — | — | — | Can start immediately |
-| Backend | Agent 2 | `db.py` core query functions incl. overlap formula | Not Started | `data-contracts.md` (frozen) | — | — | — | |
-| Backend | Agent 2 | `genie_client.py` Genie proxy | Not Started | Router scaffolding | — | — | — | Real wiring needs Data Platform's `GENIE_SPACE_ID` |
-| Backend | Agent 2 | `auth.py` session + role verification | Not Started | Router scaffolding | — | — | — | |
-| Backend | Agent 2 | `POST /api/ingest/attendance` | Not Started | Router scaffolding | — | — | — | |
-| Backend | Agent 2 | Wire real Databricks credentials | Not Started | Data Platform's published schema/Genie Space | — | — | — | |
-| Backend | Agent 2 | `pytest` suite (overlap formula, role checks, endpoint shapes) | Not Started | Corresponding implementation | — | — | — | |
-| Backend | Agent 2 | Mount built frontend static assets | Not Started | Frontend build output | — | — | — | Needed before deploy |
+| Data Platform | Agent 1 | Schema DDL (7 tables) | Verified | None | Integrated — executed against the real workspace (host `dbc-d39584f1-d4ad.cloud.databricks.com`, warehouse `453a0b7e543bf445`) | All 32 DDL statements ran successfully; all 7 tables, PK/FK/CHECK constraints confirmed live | — | `data-platform/notebooks/01_create_schema.sql`. Catalog/schema frozen as `campus_companion.campus`. Zero drift from `data-contracts.md`. |
+| Data Platform | Agent 1 | Seed data (all Synthetic Data Requirements scenarios) | Verified | Schema DDL | Integrated — all 9 INSERT statements ran successfully against live tables | Live row counts match exactly: clubs=6, students=20, rooms=9, events=12, room_bookings=10, teacher_timetable=19, event_attendance=47 | — | `data-platform/notebooks/02_seed_data.sql` |
+| Data Platform | Agent 1 | Column/table comments in Unity Catalog | Verified | Schema DDL | Integrated — created live via inline `COMMENT` clauses in the same DDL run | — | — | Embedded in `01_create_schema.sql` |
+| Data Platform | Agent 1 | `room_is_free(room_id, ts)` trusted function | Verified | Schema DDL | Integrated — created live as a real Databricks SQL UDF | All 5 smoke tests in the file passed live, incl. the half-open-interval boundary case (Lab 204 at its booking's exact end instant → `True`, not occupied) | — | `data-platform/notebooks/03_trusted_functions.sql` |
+| Data Platform | Agent 1 | Genie Space configuration (instructions, synonyms) | Implemented (source files only) | Schema + comments | Not Integrated — no live Genie Space configured yet | — | Needs manual UI steps (Genie Space creation has no safe programmatic path — see Decision Log) | `data-platform/genie/instructions.md`, `data-platform/genie/synonyms.md` ready to paste. Schema data now live and ready to point a Genie Space at. |
+| Data Platform | Agent 1 | Run + verify 10 benchmark questions | Blocked | Genie Space configured | — | Not run — expected answers hand-traced and cross-checked against the now-live seed data only | Needs Genie Space to exist first (see above) | Gate before Backend integrates real Genie. |
+| Backend | Agent 2 | Router scaffolding (all 8 endpoints) | Implemented | `architecture.md` contracts (frozen) | Verified by FastAPI TestClient against real route wiring (OpenAPI schema inspected: all 8 documented paths present) | All 43 pytest tests pass | — | `backend/app/routers/*.py`, `main.py`. Follows architecture.md's exact file mapping (bookings live in `rooms.py`, not a separate file). |
+| Backend | Agent 2 | `db.py` core query functions incl. overlap formula | Implemented | `data-contracts.md` (frozen) | Not Integrated — written against real schema/column names from Data Platform's `01_create_schema.sql`, but never executed against a live SQL warehouse (no credentials in this environment) | Overlap formula unit-tested with boundary cases (11 tests, all pass); SQL query bodies not run live | Blocked on Databricks credentials (same blocker Data Platform recorded) | `backend/app/db.py`. Centralized `_instant_occupied()`/`_ranges_overlap()` predicates mirror Data Platform's `room_is_free()` exactly. |
+| Backend | Agent 2 | `genie_client.py` Genie proxy | Implemented | Router scaffolding | Not Integrated — no live Genie Space call made | Method signatures (`start_conversation_and_wait`, `GenieMessage`, `GenieAttachment`, `get_message_attachment_query_result`) verified against the actually-installed `databricks-sdk` package via introspection, not against a live call | Blocked on Databricks credentials | `backend/app/genie_client.py`. Flagged in code comments as the first place to check during Checkpoint 2 if the installed SDK version differs. |
+| Backend | Agent 2 | `auth.py` session + role verification | Implemented | Router scaffolding | — | 11 unit tests incl. tamper/expiry cases, all pass | — | `backend/app/auth.py`. HMAC-SHA256 signed cookie, no new dependency added. |
+| Backend | Agent 2 | `POST /api/ingest/attendance` | Implemented | Router scaffolding | Not Integrated (no live warehouse) | Contract-shape tests pass (401/404/201 cases) | Blocked on Databricks credentials | `backend/app/routers/ingest.py` |
+| Backend | Agent 2 | Wire real Databricks credentials | Not Started | Data Platform's published schema/Genie Space | — | — | Blocked on Databricks credentials | `config.py` reads all required env vars incl. `UNITY_CATALOG_SCHEMA=campus_companion.campus` (matches Data Platform's frozen name) but nothing has connected to a real workspace yet |
+| Backend | Agent 2 | `pytest` suite (overlap formula, role checks, endpoint shapes) | Verified | Corresponding implementation | — | 43/43 tests pass (`backend/tests/`) | — | `test_overlap_logic.py`, `test_auth.py`, `test_contracts.py` |
+| Backend | Agent 2 | Mount built frontend static assets | Implemented | Frontend build output | Not Integrated — Frontend workstream hasn't produced `frontend/dist` yet | Confirmed the app boots correctly in its absence (falls back to API-only mode, logs it, does not crash) | — | `backend/app/main.py`; mounts `frontend/dist` at `/` if present, guarded by an existence check |
 | Frontend | Agent 3 | Token config (`tokens.css`, `tailwind.config.ts`, `tokens.ts`) | Not Started | `ui-tokens.md` (frozen) | — | — | — | Can start immediately |
 | Frontend | Agent 3 | Shell / TopBar / Container / Section / PageHeader | Not Started | Token config | — | — | — | |
 | Frontend | Agent 3 | Generic components (Button, FormField, Table, Card, StatusIndicator, Banner, Skeleton, AccessCodeModal) | Not Started | Shell primitives | — | — | — | Per `ui-registry.md` |
@@ -181,18 +181,18 @@ its actual status — this distinction is the entire point of this tracker.
 
 | Milestone | Status | Notes |
 |---|---|---|
-| Data available (7 tables seeded per Synthetic Data Requirements) | Not Started | |
-| Genie Space created/configured | Not Started | |
-| Instructions configured (verbatim from `genie.md`) | Not Started | |
-| Synonyms configured | Not Started | |
-| Trusted SQL function (`room_is_free`) created and wired into Genie Space | Not Started | |
-| Representative queries working (10 benchmarks, tested in Databricks UI) | Not Started | Required before Checkpoint 2 |
-| Boundary-time / half-open-interval case tested (benchmark #9) | Not Started | |
-| Out-of-scope question correctly declined (benchmark #10) | Not Started | |
-| Ambiguous-question handling tested (missing name/time) | Not Started | |
-| Backend proxy (`/api/genie/ask`) integrated against real Genie Space | Not Started | This is Checkpoint 2 |
-| Frontend integration working (Ask Genie renders real answers + evidence) | Not Started | |
-| End-to-end Genie flow verified on deployed build | Not Started | Required before Checkpoint 5 passes |
+| Data available (7 tables seeded per Synthetic Data Requirements) | Verified, live | `data-platform/notebooks/02_seed_data.sql`, executed against the real workspace. Live row counts confirmed: clubs=6, students=20, rooms=9, events=12, room_bookings=10, teacher_timetable=19, event_attendance=47. |
+| Genie Space created/configured | Not Started | Confirmed not safely automatable via SDK (see Decision Log) — needs a few manual clicks in the workspace UI. Data/schema it will point to is now live and ready. |
+| Instructions configured (verbatim from `genie.md`) | Ready to paste | Text at `data-platform/genie/instructions.md`, not yet pasted (no Space exists yet). |
+| Synonyms configured | Ready to paste | Table at `data-platform/genie/synonyms.md`, not yet pasted (no Space exists yet). |
+| Trusted SQL function (`room_is_free`) created and wired into Genie Space | Function verified live; not yet wired into a Space | `data-platform/notebooks/03_trusted_functions.sql` ran successfully as a real Databricks SQL UDF; all 5 smoke tests passed against live data. Still needs to be registered as a trusted function once the Genie Space exists. |
+| Representative queries working (10 benchmarks, tested in Databricks UI) | Blocked | Required before Checkpoint 2. Reference SQL + hand-traced expected answers in `data-platform/benchmarks/question_sql_pairs.md`; not yet run live. See Blockers and Risks. |
+| Boundary-time / half-open-interval case tested (benchmark #9) | Blocked | Expected answer traced and cross-checked programmatically against the seed data (Lab 204 free at exactly its booking's end instant) — not run against live Genie. |
+| Out-of-scope question correctly declined (benchmark #10) | Blocked | Instructions include an explicit refusal rule; not run against live Genie. |
+| Ambiguous-question handling tested (missing name/time) | Not Started | Instructions include the rule (assume today if no date; ask for teacher name/time if missing); no live test yet. |
+| Backend proxy (`/api/genie/ask`) integrated against real Genie Space | Implemented, not yet integrated | `backend/app/genie_client.py` + `backend/app/routers/genie.py` are complete and contract-shape tested (mocked). Never called a real Genie Space — this is still Checkpoint 2's job. |
+| Frontend integration working (Ask Genie renders real answers + evidence) | Not Started | Frontend workstream not started. |
+| End-to-end Genie flow verified on deployed build | Not Started | Required before Checkpoint 5 passes. |
 
 **Genie is the product's central value proposition** (per `project-overview.md` and
 `architecture.md` Invariant 1) — this section should never lag behind the rest of the
@@ -221,11 +221,11 @@ Decision Log — never silently), `Repeated` (failed once, re-attempted after a 
 
 | Category | Status | Latest Result | Known Failures | Owner | Next Action |
 |---|---|---|---|---|---|
-| Data validation (seed data satisfies all required scenarios) | Not Started | — | — | Data Platform | Run seed script, spot-check against `data-contracts.md` Synthetic Data Requirements |
+| Data validation (seed data satisfies all required scenarios) | Passing, live | Ran `01_create_schema.sql`/`02_seed_data.sql`/`03_trusted_functions.sql` against the real warehouse; row counts match design exactly; all 5 `room_is_free()` smoke tests (incl. the half-open-interval boundary case) passed live | None known | Data Platform | Spot-check remaining Synthetic Data Requirements scenarios not covered by the 5 smoke tests (e.g. duplicate registration, null student_id) directly in the warehouse if further confidence is wanted |
 | Frontend validation (component states manually exercised) | Not Started | — | — | Frontend | Exercise each registered component's default/loading/empty/error states as built |
-| Backend/API validation (`pytest` contract-shape tests) | Not Started | — | — | Backend | Write test per endpoint alongside its implementation |
+| Backend/API validation (`pytest` contract-shape tests) | Passing (mocked) | 43/43 tests pass in `backend/tests/` (`test_overlap_logic.py`, `test_auth.py`, `test_contracts.py`) — `db.py`/`genie_client.py` are monkeypatched, so this validates routing/contract-shape/role-enforcement, not live Databricks connectivity | None known against the mocked surface | Backend | Re-run against real `db.py`/`genie_client.py` once Databricks credentials exist (Checkpoint 2) |
 | Genie validation (10 benchmarks) | Not Started | — | — | Data Platform | Run in Databricks UI once Genie Space configured |
-| Authorization validation (student blocked, council allowed) | Not Started | — | — | Backend | `pytest` for `auth.py`; manual confirmation at Checkpoint 3 |
+| Authorization validation (student blocked, council allowed) | Passing (unit + contract-shape) | `test_auth.py` (11 tests: valid/missing/malformed/tampered/expired cookies) and `test_contracts.py` (403 without a council cookie, 201 with one) all pass | None known | Backend | Manual confirmation against the real deployed app still required at Checkpoint 3 |
 | Integration testing (per checkpoint) | Not Started | — | — | All | Run at each Integration Checkpoint above |
 | End-to-end testing (six core flows) | Not Started | — | — | All | Walk manually at Checkpoints 3, 4, 5 |
 | Regression testing (after schema/shared-component changes) | Not Started | — | — | Owning workstream | Re-walk affected flow(s) before next checkpoint |
@@ -237,7 +237,7 @@ Decision Log — never silently), `Repeated` (failed once, re-attempted after a 
 
 | Issue | Severity | Affected Workstream | Blocking? | Owner | Action | Status |
 |---|---|---|---|---|---|---|
-| *(none recorded yet)* | — | — | — | — | — | — |
+| No Databricks workspace/SQL warehouse credentials available in the current environment (no `databricks` CLI, no `.databrickscfg`, no `DATABRICKS_*` env vars) | High → Partially resolved | Data Platform and Backend (both directly — neither can reach a real warehouse/Genie Space); Frontend, Ingestion (downstream) | Partially — schema/seed/trusted-function work is unblocked and done; Genie Space + full backend integration are still blocked | Data Platform, Backend | User set up a free-tier Databricks workspace and provided credentials via `backend/.env` (gitignored). `data-platform/notebooks/01_create_schema.sql`, `02_seed_data.sql`, and `03_trusted_functions.sql` were run live and verified against the real warehouse (host `dbc-d39584f1-d4ad.cloud.databricks.com`) — see Data Platform's Workstream Tracker rows, now `Verified`. Note for future setup: the first personal access token generated was a *scoped* token missing the `sql`/`unity-catalog` API scopes and failed with "Credential was not sent or was of an unsupported type for this API" on every call, including plain REST; regenerating with broader scope fixed it. Remaining: create the Genie Space (manual UI steps — see that row's note), run the 10 benchmarks live, then point the Backend at these same credentials and re-run its test suite against the real warehouse/Genie Space. | Open (narrowed) |
 
 *Add a row the moment a blocker is identified. Mark `Status` as `Resolved` in place once
 fixed — do not delete the row.*
@@ -272,7 +272,13 @@ going to Ingestion for deployment.*
 
 | Decision | Reason | Affected Workstreams | Date/Time | Context Files Needing Update? |
 |---|---|---|---|---|
-| *(no decisions recorded yet)* | | | | |
+| Fully qualified Unity Catalog schema frozen as `campus_companion.campus` | `architecture.md` and `data-contracts.md` describe the schema as `<catalog>.campus` without naming a concrete catalog; a concrete name was needed to write runnable DDL and for Backend's `UNITY_CATALOG_SCHEMA` env var | Data Platform, Backend | 2026-09-02 | No — consistent with the `<catalog>.campus` pattern already documented in `architecture.md`; Backend should set `UNITY_CATALOG_SCHEMA=campus_companion.campus` when it configures `config.py`. |
+| Timestamp columns implemented as `TIMESTAMP_NTZ` rather than `TIMESTAMP` | `data-contracts.md`'s Time semantics require campus-local timestamps with no timezone offset stored or assumed; Databricks `TIMESTAMP` carries an implicit session-timezone conversion, `TIMESTAMP_NTZ` does not | Data Platform, Backend | 2026-09-02 | No — this is an implementation detail of the DDL, not a change to the documented field name/semantics in `data-contracts.md`. Backend's `db.py` should read/write these columns without applying any timezone conversion. |
+| **FLAGGED, NOT RESOLVED:** `POST /api/events` request/response field is `club` (a club NAME, e.g. `"AI Club"`) per `architecture.md`'s literal Integration Contract JSON, but `data-contracts.md`'s Write Contracts section for the same operation says required inputs are `name, club_id, start_ts` (an ID, not a name). Backend implemented `architecture.md`'s literal frozen field name (`club`), resolving it server-side via a case-insensitive exact match against `clubs.name` (rejecting with a 422 if not found or the club is inactive) — per AGENTS.md's authority order, `architecture.md` outranks `data-contracts.md` for API/technical-architecture questions, and code-standards.md explicitly calls the Integration Contracts' field names frozen. This is flagged, not silently picked — Frontend must send `club` (the name string), not `club_id`, when building the Admin Panel's create-event form; if that's wrong, the fix is to update `architecture.md`'s contract text first, then this code, not the other way around. | Backend (implemented), Frontend (must build against this), Data Platform (contract text) | 2026-09-02 | Possibly — `architecture.md` and/or `data-contracts.md` should be reconciled explicitly by whoever owns that decision; not changed unilaterally here. |
+| `POST /api/events` and `POST /api/bookings` return `422 {"error": "<reason>"}` (e.g. `room_not_found`, `club_not_found`, `event_not_found`) for an unknown foreign-key reference in the request body | `architecture.md`'s Integration Contracts only document 403/409/502 for these two endpoints — an FK-not-found case (distinct from a booking conflict) isn't covered by any documented status/shape. `data-contracts.md` requires such a write to be "rejected with the documented error shape," but no shape is actually documented for this case. | Backend, Frontend (must handle a 422 from these two endpoints) | 2026-09-02 | Should be — this is a genuine gap in `architecture.md`'s Integration Contracts, not just an implementation choice; consider adding it there explicitly. |
+| `genie_client.py`'s use of `databricks-sdk`'s Genie Conversation API (`start_conversation_and_wait`, `GenieMessage.attachments`, `get_message_attachment_query_result`, etc.) was verified by installing `databricks-sdk` and introspecting the actual installed package's method signatures and dataclass fields — not by calling a real Genie Space, since no workspace credentials exist in this environment | Getting the Genie proxy right matters most (build-plan.md's Critical Path item #3); guessing at an unverified SDK surface was judged too risky | Backend | 2026-09-02 | No — but re-verify against whatever `databricks-sdk` version actually gets pinned/deployed; flagged in code comments in `genie_client.py` as the first place to check if Checkpoint 2 integration fails. |
+| Data Platform's schema/seed/trusted-function SQL was run live against a real Databricks free-tier workspace and verified (see Workstream Tracker — now `Verified`, not just `Implemented`) | The user set up workspace access and asked for this to be done; credentials were provided via a gitignored `backend/.env`, never pasted into chat | Data Platform | 2026-09-02 | No |
+| Genie Space creation was confirmed NOT safely automatable via `databricks-sdk` (`GenieAPI.create_space`/`update_space` both require a `serialized_space` payload whose format is undocumented/internal — Databricks' own docs say to get an example from an existing space first, which is circular for a first-time creation) | Checked via SDK introspection before attempting anything; hand-crafting an undocumented internal payload format was judged too risky (could silently misconfigure the space with no way to verify correctness) | Data Platform | 2026-09-02 | No — this is a capability finding, not a contract change. The Genie Space must be created via the workspace UI; `data-platform/genie/instructions.md` and `synonyms.md` are ready to paste in once it exists. |
 
 *Only record decisions that change or clarify something another agent needs to know —
 not general notes. If a decision changes a documented contract, the "Context Files
