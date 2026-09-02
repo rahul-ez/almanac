@@ -71,7 +71,7 @@ its actual status — this distinction is the entire point of this tracker.
 
 | Field | Value |
 |---|---|
-| Current phase (per `build-plan.md`'s Phase Breakdown) | Phase 3/4 Integration — All 4 workstreams completed foundational build; merging into `main` and wiring end-to-end stack |
+| Current phase (per `build-plan.md`'s Phase Breakdown) | Phase 3/4 Integration — All 4 workstreams completed foundational build; merged into `main` and wiring end-to-end stack |
 | Current checkpoint | Checkpoint 1 Passed; Checkpoint 2 (Vertical Slice Integration) in progress on `main` |
 | Overall status | In Progress — Data Platform live & verified on workspace; Backend implemented with 43 passing tests; Frontend complete; Ingestion pipeline & stub validator complete |
 | Hours/stage remaining | Integration and End-to-End Testing stages remaining |
@@ -81,7 +81,7 @@ its actual status — this distinction is the entire point of this tracker.
 | Testing status | Backend: 43/43 pytest tests passing. Frontend: TypeScript clean (0 errors), build successful. Ingestion: contract test suite passing. Data Platform: 5 UDF smoke tests passing against live warehouse. |
 | Deployment status | Databricks Apps deploy configuration and manifest ready in `deploy/databricks_app_deploy.md` and `backend/app.yaml`. |
 | Current blockers | Genie Space creation requires manual UI creation in Databricks workspace; then point `GENIE_SPACE_ID` in `backend/.env`. |
-| Highest-priority next actions | 1. Switch `USE_MOCK = false` in `frontend/src/api/client.ts`. 2. Build `frontend/dist` and verify FastAPI static mount. 3. Merge Ingestion branch. 4. Run full test suite. |
+| Highest-priority next actions | 1. Switch `USE_MOCK = false` in `frontend/src/api/client.ts`. 2. Build `frontend/dist` and verify FastAPI static mount. 3. Run full test suite. |
 
 ---
 
