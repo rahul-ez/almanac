@@ -170,6 +170,17 @@ def room_exists(room_id: str) -> bool:
     return len(rows) > 0
 
 
+def resolve_room_id(identifier: str) -> str | None:
+    """Resolves a room by room_id or case-insensitive name (e.g. 'room_005' or 'Lab 204')."""
+    if not identifier:
+        return None
+    rows = _query(
+        f"SELECT room_id FROM {SCHEMA}.rooms WHERE room_id = :id OR LOWER(name) = LOWER(:id)",
+        {"id": identifier.strip()},
+    )
+    return rows[0]["room_id"] if rows else None
+
+
 # =============================================================================
 # Reads: teacher availability
 # =============================================================================
@@ -236,6 +247,17 @@ def event_exists(event_id: str) -> bool:
     return len(rows) > 0
 
 
+def resolve_event_id(identifier: str) -> str | None:
+    """Resolves an event by event_id or case-insensitive name (e.g. 'evt_001' or 'AI Workshop')."""
+    if not identifier:
+        return None
+    rows = _query(
+        f"SELECT event_id FROM {SCHEMA}.events WHERE event_id = :id OR LOWER(name) = LOWER(:id)",
+        {"id": identifier.strip()},
+    )
+    return rows[0]["event_id"] if rows else None
+
+
 def get_club_by_name(name: str) -> dict[str, Any] | None:
     """Case-insensitive exact match, per data-contracts.md's clubs.name
     uniqueness invariant."""
@@ -293,10 +315,15 @@ def create_booking(
     (supersede-then-insert) and is an accepted simplification for a
     single-demo-writer hackathon build, not a production concurrency
     guarantee."""
-    if not room_exists(room_id):
+    resolved_room = resolve_room_id(room_id)
+    if not resolved_room:
         raise NotFoundError("room_not_found")
-    if not event_exists(event_id):
+    resolved_event = resolve_event_id(event_id)
+    if not resolved_event:
         raise NotFoundError("event_not_found")
+
+    room_id = resolved_room
+    event_id = resolved_event
 
     conflict = _confirmed_conflict(room_id, start_ts, end_ts, exclude_event_id=event_id)
     if conflict is not None:
@@ -348,27 +375,24 @@ def create_event(
     room_id: str | None = None,
 ) -> dict[str, Any]:
     """Per data-contracts.md's Write Contracts (Create event). `club_name` is
-    resolved against clubs.name (case-insensitive) per architecture.md's
-    Integration Contract, which names the input field "club" with an example
-    value of "AI Club" (a display name), not "club_id" — see the flagged
-    contract note in this workstream's summary.
-
-    If `room_id` is supplied, the requested window is checked for a conflict
-    BEFORE the event is inserted at all — a conflict rejects event creation
-    entirely rather than creating a room-less event as a fallback, per
-    data-contracts.md."""
+    resolved case-insensitively against clubs.name; `room_id` (if supplied) is
+    validated and immediately booked via the same supersede-then-insert path,
+    rejecting before inserting the event if a conflict exists. If `end_ts` is
+    omitted, defaults to `start_ts + 1 hour`."""
     club = get_club_by_name(club_name)
-    if club is None:
+    if not club:
         raise NotFoundError("club_not_found")
     if not club["active"]:
-        raise NotFoundError("club_not_active")
+        raise NotFoundError("club_inactive")
 
-    resolved_end_ts = end_ts or start_ts.replace() + _default_duration()
+    computed_end_ts = end_ts or (start_ts + _ONE_HOUR)
 
-    if room_id is not None:
-        if not room_exists(room_id):
+    if room_id:
+        resolved_room = resolve_room_id(room_id)
+        if not resolved_room:
             raise NotFoundError("room_not_found")
-        conflict = _confirmed_conflict(room_id, start_ts, resolved_end_ts)
+        room_id = resolved_room
+        conflict = _confirmed_conflict(room_id, start_ts, computed_end_ts)
         if conflict is not None:
             raise BookingConflictError(conflict)
 
