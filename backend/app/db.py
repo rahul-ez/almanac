@@ -86,8 +86,9 @@ _SQL_RANGES_OVERLAP = "b.start_ts < :end_ts AND :start_ts < b.end_ts"
 @contextmanager
 def _connection() -> Iterator[Any]:
     try:
+        hostname = (settings.databricks_host or "").replace("https://", "").replace("http://", "").split("/")[0]
         conn = dbsql.connect(
-            server_hostname=settings.databricks_host,
+            server_hostname=hostname,
             http_path=f"/sql/1.0/warehouses/{settings.sql_warehouse_id}",
             access_token=settings.databricks_token,
         )
