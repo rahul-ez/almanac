@@ -71,17 +71,17 @@ its actual status — this distinction is the entire point of this tracker.
 
 | Field | Value |
 |---|---|
-| Current phase (per `build-plan.md`'s Phase Breakdown) | Not started — Phase 1: Contract Confirmation and Environment Setup |
+| Current phase (per `build-plan.md`'s Phase Breakdown) | Phase 2: Foundational Build — Data Platform's artifacts are drafted; Backend, Frontend, Ingestion have not started |
 | Current checkpoint | None evaluated yet — next is Checkpoint 1: Shared Foundation Readiness |
-| Overall status | Not started |
+| Overall status | In progress — Data Platform only |
 | Hours/stage remaining | Full 12 hours remaining |
 | Core product flow status | Not started |
-| Genie status | Not started — see Genie Readiness |
+| Genie status | Config drafted, not live — see Genie Readiness |
 | Integration status | No integration attempted yet |
-| Testing status | No tests run yet |
+| Testing status | Seed data/schema validated by a standalone script (referential integrity, enum/CHECK compliance, overlap-interval correctness, every Synthetic Data Requirements scenario); nothing executed against a live Databricks warehouse yet |
 | Deployment status | Not deployed |
-| Current blockers | None recorded yet |
-| Highest-priority next actions | 1. Confirm all four agents have working local toolchains and Databricks/Google access (Checkpoint 1). 2. Data Platform begins schema + seed data. 3. Backend begins router scaffolding against documented mock shapes. 4. Frontend begins token config + shell primitives. 5. Ingestion begins Google Form setup. |
+| Current blockers | No Databricks workspace credentials available in this environment — see Blockers and Risks |
+| Highest-priority next actions | 1. Get real Databricks workspace/warehouse credentials and run `data-platform/notebooks/01_create_schema.sql`, `02_seed_data.sql`, `03_trusted_functions.sql` against a live SQL warehouse. 2. Configure the Genie Space from `data-platform/genie/instructions.md` and `synonyms.md`, then run the 10 benchmarks in `data-platform/benchmarks/question_sql_pairs.md` live. 3. Backend begins router scaffolding against documented mock shapes. 4. Frontend begins token config + shell primitives. 5. Ingestion begins Google Form setup. |
 
 ---
 
@@ -89,12 +89,12 @@ its actual status — this distinction is the entire point of this tracker.
 
 | Workstream | Owner | Task | Status | Dependency | Integration State | Verification | Blocker | Notes |
 |---|---|---|---|---|---|---|---|---|
-| Data Platform | Agent 1 | Schema DDL (7 tables) | Not Started | None | — | — | — | |
-| Data Platform | Agent 1 | Seed data (all Synthetic Data Requirements scenarios) | Not Started | Schema DDL | — | — | — | |
-| Data Platform | Agent 1 | Column/table comments in Unity Catalog | Not Started | Schema DDL | — | — | — | |
-| Data Platform | Agent 1 | `room_is_free(room_id, ts)` trusted function | Not Started | Schema DDL | — | — | — | |
-| Data Platform | Agent 1 | Genie Space configuration (instructions, synonyms) | Not Started | Schema + comments | — | — | — | |
-| Data Platform | Agent 1 | Run + verify 10 benchmark questions | Not Started | Genie Space configured | — | — | — | Gate before Backend integrates real Genie |
+| Data Platform | Agent 1 | Schema DDL (7 tables) | Implemented | None | — | Validated by standalone parser (PK/FK integrity, CHECK/enum values, time-order constraints) — not yet executed against a live SQL warehouse | Blocked on Databricks credentials | `data-platform/notebooks/01_create_schema.sql`. Catalog/schema frozen as `campus_companion.campus` — see Decision Log. Zero drift from `data-contracts.md`. |
+| Data Platform | Agent 1 | Seed data (all Synthetic Data Requirements scenarios) | Implemented | Schema DDL | — | Every scenario in data-contracts.md's Synthetic Data Requirements checked programmatically and passes (see script output referenced in Decision Log) | Blocked on Databricks credentials | `data-platform/notebooks/02_seed_data.sql`. 6 clubs, 20 students, 9 rooms, 12 events, 10 room_bookings, 19 teacher_timetable, 47 event_attendance. |
+| Data Platform | Agent 1 | Column/table comments in Unity Catalog | Implemented | Schema DDL | — | — | Blocked on Databricks credentials | Embedded as inline `COMMENT` clauses in `01_create_schema.sql`; not yet confirmed visible in a live Unity Catalog. |
+| Data Platform | Agent 1 | `room_is_free(room_id, ts)` trusted function | Implemented | Schema DDL | — | Logic hand-verified against seed data for all 3 smoke-test cases in the file (busy, boundary-free, never-booked) | Blocked on Databricks credentials | `data-platform/notebooks/03_trusted_functions.sql`. Not yet executed as a real Databricks SQL UDF. |
+| Data Platform | Agent 1 | Genie Space configuration (instructions, synonyms) | Implemented (source files only) | Schema + comments | Not Integrated — no live Genie Space configured yet | — | Blocked on Databricks workspace access | `data-platform/genie/instructions.md`, `data-platform/genie/synonyms.md` written and ready to paste; not yet pasted into an actual Genie Space. |
+| Data Platform | Agent 1 | Run + verify 10 benchmark questions | Blocked | Genie Space configured | — | Not run — expected answers hand-traced against seed data only (see `data-platform/benchmarks/question_sql_pairs.md`) | Blocked on Databricks workspace access | Gate before Backend integrates real Genie. Must be re-run live before this workstream can be marked Verified. |
 | Backend | Agent 2 | Router scaffolding (all endpoints, mock data) | Not Started | `architecture.md` contracts (frozen) | — | — | — | Can start immediately |
 | Backend | Agent 2 | `db.py` core query functions incl. overlap formula | Not Started | `data-contracts.md` (frozen) | — | — | — | |
 | Backend | Agent 2 | `genie_client.py` Genie proxy | Not Started | Router scaffolding | — | — | — | Real wiring needs Data Platform's `GENIE_SPACE_ID` |
@@ -181,18 +181,18 @@ its actual status — this distinction is the entire point of this tracker.
 
 | Milestone | Status | Notes |
 |---|---|---|
-| Data available (7 tables seeded per Synthetic Data Requirements) | Not Started | |
-| Genie Space created/configured | Not Started | |
-| Instructions configured (verbatim from `genie.md`) | Not Started | |
-| Synonyms configured | Not Started | |
-| Trusted SQL function (`room_is_free`) created and wired into Genie Space | Not Started | |
-| Representative queries working (10 benchmarks, tested in Databricks UI) | Not Started | Required before Checkpoint 2 |
-| Boundary-time / half-open-interval case tested (benchmark #9) | Not Started | |
-| Out-of-scope question correctly declined (benchmark #10) | Not Started | |
-| Ambiguous-question handling tested (missing name/time) | Not Started | |
-| Backend proxy (`/api/genie/ask`) integrated against real Genie Space | Not Started | This is Checkpoint 2 |
-| Frontend integration working (Ask Genie renders real answers + evidence) | Not Started | |
-| End-to-end Genie flow verified on deployed build | Not Started | Required before Checkpoint 5 passes |
+| Data available (7 tables seeded per Synthetic Data Requirements) | Implemented (not yet live) | `data-platform/notebooks/02_seed_data.sql`; every required scenario verified by a standalone parser script, not by a live warehouse query. |
+| Genie Space created/configured | Not Started | Requires an actual Databricks workspace session — blocked in this environment. |
+| Instructions configured (verbatim from `genie.md`) | Implemented (not yet pasted) | Ready-to-paste text at `data-platform/genie/instructions.md`. |
+| Synonyms configured | Implemented (not yet pasted) | Ready-to-paste table at `data-platform/genie/synonyms.md`. |
+| Trusted SQL function (`room_is_free`) created and wired into Genie Space | Implemented (not yet live) | `data-platform/notebooks/03_trusted_functions.sql`; not yet run as a real Databricks SQL UDF or registered in a Genie Space. |
+| Representative queries working (10 benchmarks, tested in Databricks UI) | Blocked | Required before Checkpoint 2. Reference SQL + hand-traced expected answers in `data-platform/benchmarks/question_sql_pairs.md`; not yet run live. See Blockers and Risks. |
+| Boundary-time / half-open-interval case tested (benchmark #9) | Blocked | Expected answer traced and cross-checked programmatically against the seed data (Lab 204 free at exactly its booking's end instant) — not run against live Genie. |
+| Out-of-scope question correctly declined (benchmark #10) | Blocked | Instructions include an explicit refusal rule; not run against live Genie. |
+| Ambiguous-question handling tested (missing name/time) | Not Started | Instructions include the rule (assume today if no date; ask for teacher name/time if missing); no live test yet. |
+| Backend proxy (`/api/genie/ask`) integrated against real Genie Space | Not Started | This is Checkpoint 2. Backend workstream not started. |
+| Frontend integration working (Ask Genie renders real answers + evidence) | Not Started | Frontend workstream not started. |
+| End-to-end Genie flow verified on deployed build | Not Started | Required before Checkpoint 5 passes. |
 
 **Genie is the product's central value proposition** (per `project-overview.md` and
 `architecture.md` Invariant 1) — this section should never lag behind the rest of the
@@ -237,7 +237,7 @@ Decision Log — never silently), `Repeated` (failed once, re-attempted after a 
 
 | Issue | Severity | Affected Workstream | Blocking? | Owner | Action | Status |
 |---|---|---|---|---|---|---|
-| *(none recorded yet)* | — | — | — | — | — | — |
+| No Databricks workspace/SQL warehouse credentials available in the current environment (no `databricks` CLI, no `.databrickscfg`, no `DATABRICKS_*` env vars) | High | Data Platform (directly); Backend, Frontend, Ingestion (downstream — none of them can reach real data/Genie without this) | Yes — blocks moving any Data Platform task from Implemented to Integrated/Verified | Data Platform | All SQL/config artifacts are authored and validated by a standalone script instead (see `data-platform/README.md`'s "Known limitation" section). Needs a human with real workspace access to run `data-platform/notebooks/*.sql`, configure the Genie Space per `data-platform/genie/`, and run the benchmarks in `data-platform/benchmarks/question_sql_pairs.md`. | Open |
 
 *Add a row the moment a blocker is identified. Mark `Status` as `Resolved` in place once
 fixed — do not delete the row.*
@@ -272,7 +272,8 @@ going to Ingestion for deployment.*
 
 | Decision | Reason | Affected Workstreams | Date/Time | Context Files Needing Update? |
 |---|---|---|---|---|
-| *(no decisions recorded yet)* | | | | |
+| Fully qualified Unity Catalog schema frozen as `campus_companion.campus` | `architecture.md` and `data-contracts.md` describe the schema as `<catalog>.campus` without naming a concrete catalog; a concrete name was needed to write runnable DDL and for Backend's `UNITY_CATALOG_SCHEMA` env var | Data Platform, Backend | 2026-09-02 | No — consistent with the `<catalog>.campus` pattern already documented in `architecture.md`; Backend should set `UNITY_CATALOG_SCHEMA=campus_companion.campus` when it configures `config.py`. |
+| Timestamp columns implemented as `TIMESTAMP_NTZ` rather than `TIMESTAMP` | `data-contracts.md`'s Time semantics require campus-local timestamps with no timezone offset stored or assumed; Databricks `TIMESTAMP` carries an implicit session-timezone conversion, `TIMESTAMP_NTZ` does not | Data Platform, Backend | 2026-09-02 | No — this is an implementation detail of the DDL, not a change to the documented field name/semantics in `data-contracts.md`. Backend's `db.py` should read/write these columns without applying any timezone conversion. |
 
 *Only record decisions that change or clarify something another agent needs to know —
 not general notes. If a decision changes a documented contract, the "Context Files
