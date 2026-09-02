@@ -7,6 +7,7 @@
 import { useEffect, useRef } from "react";
 import type { Message } from "../../hooks/useGenieConversation";
 import { GenieEvidenceDisclosure } from "./GenieEvidenceDisclosure";
+import { MarkdownText } from "../primitives/MarkdownText";
 import { User, AlertCircle, HelpCircle, Database } from "lucide-react";
 
 interface GenieMessageProps {
@@ -113,7 +114,7 @@ export function GenieMessage({ message, isNewest = false }: GenieMessageProps) {
         tabIndex={-1}
         className="max-w-[85%] bg-surface-elevated border border-border rounded-lg px-4 py-3 shadow-elevated"
       >
-        <p className="text-body text-text leading-relaxed">{message.content}</p>
+        <MarkdownText content={message.content} className="text-body text-text" />
         {message.sql && (
           <GenieEvidenceDisclosure
             sql={message.sql}
