@@ -77,3 +77,14 @@ after pasting `instructions.md` and before running the benchmark set.
 | "right now" / "currently" | Current campus-local timestamp |
 | "this week" | Current campus-local Monday-Sunday calendar week |
 | "tomorrow" | Current campus-local calendar date + 1 day |
+
+## Internships
+
+| Informal term | Canonical meaning |
+|---|---|
+| "internship" / "internships" / "intern opportunities" | `internships` table (`status = 'open'` by default) |
+| "stipend" / "pay" / "salary" | `internships.stipend` |
+| "deadline" / "last date to apply" | `internships.deadline_ts` |
+| "eligibility" / "who can apply" | `internships.eligibility` |
+| "company" / "recruiter" | `internships.company_name` |
+

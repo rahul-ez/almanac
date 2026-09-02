@@ -240,6 +240,19 @@ INSERT INTO campus_companion.campus.event_attendance
   ('att_0047', 'evt_012', 'stu_0009', 'Ananya Menon',    'ananya.menon@campus.edu',     TIMESTAMP_NTZ '2026-09-01 12:05:00', 'seed');
 
 -- =============================================================================
+-- internships (6 rows)
+-- =============================================================================
+INSERT INTO campus_companion.campus.internships
+  (internship_id, company_name, role_title, location, stipend, eligibility, deadline_ts, apply_url, status)
+VALUES
+  ('int_001', 'Databricks', 'Data Engineering Intern', 'Bangalore / Hybrid', 'Rs 75,000/month', '3rd & 4th Year CS/IT/Data Science', TIMESTAMP_NTZ '2026-09-30 23:59:59', 'https://databricks.com/careers', 'open'),
+  ('int_002', 'Google', 'Software Engineering Intern (Summer 2027)', 'Hyderabad / Remote', 'Rs 1,00,000/month', '2nd & 3rd Year B.Tech (All Branches)', TIMESTAMP_NTZ '2026-10-15 23:59:59', 'https://careers.google.com/students', 'open'),
+  ('int_003', 'Microsoft', 'AI/ML Research Intern', 'Bangalore', 'Rs 85,000/month', '3rd & 4th Year CS/AI/ECE (CGPA > 8.0)', TIMESTAMP_NTZ '2026-09-25 18:00:00', 'https://careers.microsoft.com', 'open'),
+  ('int_004', 'Tesla', 'Robotics & Automation Intern', 'Remote', 'Rs 60,000/month', 'Mechanical / Robotics / CS', TIMESTAMP_NTZ '2026-09-18 23:59:59', 'https://tesla.com/careers/internships', 'open'),
+  ('int_005', 'Campus AI Lab', 'GenAI Student Researcher', 'Campus (Lab 204)', 'Rs 25,000/month', 'All UG/PG Students with Python skills', TIMESTAMP_NTZ '2026-09-12 17:00:00', 'https://campus.edu/ailab/apply', 'open'),
+  ('int_006', 'Amazon', 'Cloud Solutions Architect Intern', 'Chennai / Hybrid', 'Rs 65,000/month', 'Pre-final & Final Year Students', TIMESTAMP_NTZ '2026-08-31 23:59:59', 'https://amazon.jobs/university', 'closed');
+
+-- =============================================================================
 -- Sanity checks — run manually after seeding.
 -- =============================================================================
 -- SELECT 'clubs' t, count(*) n FROM campus_companion.campus.clubs
@@ -248,6 +261,7 @@ INSERT INTO campus_companion.campus.event_attendance
 -- UNION ALL SELECT 'events', count(*) FROM campus_companion.campus.events
 -- UNION ALL SELECT 'room_bookings', count(*) FROM campus_companion.campus.room_bookings
 -- UNION ALL SELECT 'teacher_timetable', count(*) FROM campus_companion.campus.teacher_timetable
--- UNION ALL SELECT 'event_attendance', count(*) FROM campus_companion.campus.event_attendance;
+-- UNION ALL SELECT 'event_attendance', count(*) FROM campus_companion.campus.event_attendance
+-- UNION ALL SELECT 'internships', count(*) FROM campus_companion.campus.internships;
 -- Expected: clubs=6, students=20, rooms=9, events=12, room_bookings=10,
 --           teacher_timetable=19, event_attendance=47.

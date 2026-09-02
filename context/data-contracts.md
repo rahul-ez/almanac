@@ -40,6 +40,7 @@ it.
 | `room_bookings` | Confirmed reservations of a room for an event's time window; authoritative source for room availability | Admin Panel (create) / Data Platform seed data | `booking_id` | Rooms availability checks, Genie, Newsletter Home |
 | `teacher_timetable` | Time periods during which a named teacher is occupied; authoritative source for teacher availability | Data Platform seed data | `entry_id` | Genie (teacher availability questions) |
 | `event_attendance` | Individual registrations/attendance records for an event; authoritative source for attendance counts | Ingestion webhook (Google Form) / Data Platform seed data | `attendance_id` | Newsletter Home, Genie, live demo loop |
+| `internships` | Internship and job opportunities for students | Data Platform seed data | `internship_id` | Genie, Career guidance queries |
 
 ---
 
@@ -396,6 +397,41 @@ flow — attendance records are append-only for the duration of the hackathon.
   "registrant_email": "aditi.sharma@campus.edu",
   "registered_at": "2026-09-05T14:58:00",
   "source": "google_form"
+}
+```
+
+### `internships`
+
+**Purpose**
+Represents student internship opportunities offered on campus or by partner recruiters.
+Allows students to query upcoming application deadlines, eligible majors, roles, and stipends.
+
+**Fields**
+
+| Field | Type | Required | Description | Allowed / Expected Values | Example |
+|---|---|---|---|---|---|
+| `internship_id` | string | Yes | Canonical identifier | `int_` + 3-digit zero-padded number | `int_001` |
+| `company_name` | string | Yes | Offering company | Free text | `Databricks` |
+| `role_title` | string | Yes | Internship position title | Free text | `Data Engineering Intern` |
+| `location` | string | Yes | Work location | Free text | `Bangalore / Hybrid` |
+| `stipend` | string | No | Compensation details | Free text | `Rs 75,000/month` |
+| `eligibility` | string | No | Eligible batches / departments | Free text | `3rd & 4th Year CS/IT` |
+| `deadline_ts` | timestamp | Yes | Application deadline | Campus-local timestamp | `2026-09-30T23:59:59` |
+| `apply_url` | string | No | Application portal URL | Valid URL | `https://databricks.com/careers` |
+| `status` | string | Yes | Lifecycle status | Closed set: `open`, `closed` | `open` |
+
+**Example Record**
+```json
+{
+  "internship_id": "int_001",
+  "company_name": "Databricks",
+  "role_title": "Data Engineering Intern",
+  "location": "Bangalore / Hybrid",
+  "stipend": "Rs 75,000/month",
+  "eligibility": "3rd & 4th Year CS/IT/Data Science",
+  "deadline_ts": "2026-09-30T23:59:59",
+  "apply_url": "https://databricks.com/careers",
+  "status": "open"
 }
 ```
 

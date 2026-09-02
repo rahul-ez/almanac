@@ -174,6 +174,27 @@ ALTER TABLE campus_companion.campus.event_attendance ADD CONSTRAINT chk_event_at
   CHECK (source IN ('google_form', 'seed'));
 
 -- =============================================================================
--- Sanity check — run after this script to confirm all 7 tables registered.
+-- internships
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS campus_companion.campus.internships (
+  internship_id STRING       NOT NULL COMMENT 'Canonical identifier, format int_NNN (3-digit zero-padded). Immutable.',
+  company_name  STRING       NOT NULL COMMENT 'Company / Organization offering the internship.',
+  role_title    STRING       NOT NULL COMMENT 'Role / Position title, e.g. "Data Science Intern".',
+  location      STRING       NOT NULL COMMENT 'Location, e.g. "Remote", "Bangalore", "Hybrid", "Campus".',
+  stipend       STRING                COMMENT 'Stipend details, e.g. "Rs 75,000/month", "Unpaid".',
+  eligibility   STRING                COMMENT 'Eligible batches/majors.',
+  deadline_ts   TIMESTAMP_NTZ NOT NULL COMMENT 'Application deadline timestamp.',
+  apply_url     STRING                COMMENT 'Application link or portal URL.',
+  status        STRING       NOT NULL COMMENT 'Closed set: open, closed. Default open.'
+)
+USING DELTA
+COMMENT 'Campus and off-campus internship opportunities for students. See context/data-contracts.md#internships.';
+
+ALTER TABLE campus_companion.campus.internships ADD CONSTRAINT pk_internships PRIMARY KEY (internship_id);
+ALTER TABLE campus_companion.campus.internships ADD CONSTRAINT chk_internships_status
+  CHECK (status IN ('open', 'closed'));
+
+-- =============================================================================
+-- Sanity check — run after this script to confirm all tables registered.
 -- =============================================================================
 -- SHOW TABLES IN campus_companion.campus;
