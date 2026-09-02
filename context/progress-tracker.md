@@ -71,17 +71,17 @@ its actual status — this distinction is the entire point of this tracker.
 
 | Field | Value |
 |---|---|
-| Current phase (per `build-plan.md`'s Phase Breakdown) | Not started — Phase 1: Contract Confirmation and Environment Setup |
-| Current checkpoint | None evaluated yet — next is Checkpoint 1: Shared Foundation Readiness |
-| Overall status | Not started |
-| Hours/stage remaining | Full 12 hours remaining |
-| Core product flow status | Not started |
+| Current phase (per `build-plan.md`'s Phase Breakdown) | Phase 2: Foundational Build (Frontend complete; awaiting Backend, Data Platform, Ingestion) |
+| Current checkpoint | Checkpoint 1 passed (Frontend toolchain running). Next: Checkpoint 2 — Vertical Slice Integration |
+| Overall status | In Progress |
+| Hours/stage remaining | Proceeding to Phase 3 vertical slice once Backend endpoints live |
+| Core product flow status | Frontend mock-backed; awaiting real Backend |
 | Genie status | Not started — see Genie Readiness |
-| Integration status | No integration attempted yet |
-| Testing status | No tests run yet |
+| Integration status | No integration attempted yet — Frontend built against mocks |
+| Testing status | Frontend: manual component state verification passed (default/loading/empty/error). TypeScript: clean (0 errors). No backend tests yet. |
 | Deployment status | Not deployed |
-| Current blockers | None recorded yet |
-| Highest-priority next actions | 1. Confirm all four agents have working local toolchains and Databricks/Google access (Checkpoint 1). 2. Data Platform begins schema + seed data. 3. Backend begins router scaffolding against documented mock shapes. 4. Frontend begins token config + shell primitives. 5. Ingestion begins Google Form setup. |
+| Current blockers | None |
+| Highest-priority next actions | 1. Backend agent: bring /api/genie/ask live. 2. Frontend: swap USE_MOCK to false in client.ts and test vertical slice (Checkpoint 2). 3. Data Platform: confirm GENIE_SPACE_ID. |
 
 ---
 
@@ -103,13 +103,13 @@ its actual status — this distinction is the entire point of this tracker.
 | Backend | Agent 2 | Wire real Databricks credentials | Not Started | Data Platform's published schema/Genie Space | — | — | — | |
 | Backend | Agent 2 | `pytest` suite (overlap formula, role checks, endpoint shapes) | Not Started | Corresponding implementation | — | — | — | |
 | Backend | Agent 2 | Mount built frontend static assets | Not Started | Frontend build output | — | — | — | Needed before deploy |
-| Frontend | Agent 3 | Token config (`tokens.css`, `tailwind.config.ts`, `tokens.ts`) | Not Started | `ui-tokens.md` (frozen) | — | — | — | Can start immediately |
-| Frontend | Agent 3 | Shell / TopBar / Container / Section / PageHeader | Not Started | Token config | — | — | — | |
-| Frontend | Agent 3 | Generic components (Button, FormField, Table, Card, StatusIndicator, Banner, Skeleton, AccessCodeModal) | Not Started | Shell primitives | — | — | — | Per `ui-registry.md` |
-| Frontend | Agent 3 | `api/client.ts` (mock-backed initially) | Not Started | `architecture.md` contracts (frozen) | — | — | — | |
-| Frontend | Agent 3 | Ask Genie surface (chat container, message, input, chips, evidence disclosure, result table) | Not Started | Generic components | — | — | — | First page to integrate against real Backend |
-| Frontend | Agent 3 | Newsletter Home (event grid, room availability, polling) | Not Started | Generic components | — | — | — | |
-| Frontend | Agent 3 | Admin Panel (both write forms, RoleGate) | Not Started | Generic components + AccessCodeModal | — | — | — | |
+| Frontend | Agent 3 | Token config (`tokens.css`, `tailwind.config.ts`, `tokens.ts`) | Implemented | `ui-tokens.md` (frozen) | — | Verified locally (TypeScript clean, renders correctly) | — | Vite project at `frontend/`. Tailwind v3. |
+| Frontend | Agent 3 | Shell / TopBar / Container / Section / PageHeader | Implemented | Token config | — | Verified locally | — | Skip link, sticky nav, 3 routes |
+| Frontend | Agent 3 | Generic components (Button, FormField, Table, Card, StatusIndicator, Banner, Skeleton, AccessCodeModal) | Implemented | Shell primitives | — | Verified locally | — | Per `ui-registry.md` |
+| Frontend | Agent 3 | `api/client.ts` (mock-backed initially) | Implemented | `architecture.md` contracts (frozen) | — | Verified locally with mock data | — | USE_MOCK=true; swap to false when Backend live |
+| Frontend | Agent 3 | Ask Genie surface (chat container, message, input, chips, evidence disclosure, result table) | Implemented | Generic components | — | Verified locally | — | First page to integrate against real Backend |
+| Frontend | Agent 3 | Newsletter Home (event grid, room availability, polling) | Implemented | Generic components | — | Verified locally (15s poll, visibilitychange pause) | — | |
+| Frontend | Agent 3 | Admin Panel (both write forms, RoleGate) | Implemented | Generic components + AccessCodeModal | — | Verified locally (RoleGate, both forms render) | — | |
 | Ingestion & Integration | Agent 4 | Google Form + linked Sheet | Not Started | None | — | — | — | Can start immediately |
 | Ingestion & Integration | Agent 4 | Apps Script (`on_form_submit.gs`) against local stub | Not Started | Form created | — | — | — | |
 | Ingestion & Integration | Agent 4 | Re-point Apps Script to real ingestion endpoint | Not Started | Backend's `/api/ingest/attendance` live | — | — | — | |
