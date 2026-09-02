@@ -32,11 +32,10 @@ const STANDARD_ROOMS = [
 
 const STANDARD_CLUBS = [
   { value: "AI Club", label: "AI Club" },
-  { value: "Robotics Society", label: "Robotics Society" },
-  { value: "Coding Club", label: "Coding Club" },
-  { value: "Design Club", label: "Design Club" },
+  { value: "Robotics Club", label: "Robotics Club" },
+  { value: "Photography Club", label: "Photography Club" },
   { value: "Debate Society", label: "Debate Society" },
-  { value: "Music Club", label: "Music Club" },
+  { value: "Campus Sports Club", label: "Campus Sports Club" },
 ];
 
 // ── RoleGate ──────────────────────────────────────────────────────────────────

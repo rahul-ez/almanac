@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Iterator
 
 from databricks import sql as dbsql
@@ -78,6 +78,7 @@ def _ranges_overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end
 # (the candidate range, for the overlap check) to match these fragments.
 _SQL_INSTANT_OCCUPIED = "b.start_ts <= :at AND :at < b.end_ts"
 _SQL_RANGES_OVERLAP = "b.start_ts < :end_ts AND :start_ts < b.end_ts"
+_ONE_HOUR = timedelta(hours=1)
 
 
 # =============================================================================
@@ -409,7 +410,7 @@ def create_event(
             "description": description,
             "room_id": room_id,
             "start_ts": start_ts,
-            "end_ts": resolved_end_ts,
+            "end_ts": computed_end_ts,
         },
     )
 
@@ -424,7 +425,7 @@ def create_event(
                 "room_id": room_id,
                 "event_id": event_id,
                 "start_ts": start_ts,
-                "end_ts": resolved_end_ts,
+                "end_ts": computed_end_ts,
             },
         )
 
