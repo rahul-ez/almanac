@@ -110,12 +110,12 @@ its actual status — this distinction is the entire point of this tracker.
 | Frontend | Agent 3 | Ask Genie surface (chat container, message, input, chips, evidence disclosure, result table) | Not Started | Generic components | — | — | — | First page to integrate against real Backend |
 | Frontend | Agent 3 | Newsletter Home (event grid, room availability, polling) | Not Started | Generic components | — | — | — | |
 | Frontend | Agent 3 | Admin Panel (both write forms, RoleGate) | Not Started | Generic components + AccessCodeModal | — | — | — | |
-| Ingestion & Integration | Agent 4 | Google Form + linked Sheet | Not Started | None | — | — | — | Can start immediately |
-| Ingestion & Integration | Agent 4 | Apps Script (`on_form_submit.gs`) against local stub | Not Started | Form created | — | — | — | |
-| Ingestion & Integration | Agent 4 | Re-point Apps Script to real ingestion endpoint | Not Started | Backend's `/api/ingest/attendance` live | — | — | — | |
-| Ingestion & Integration | Agent 4 | `form-config-notes.md` + `demo-script.md` | Not Started | Form + Apps Script working | — | — | — | |
-| Ingestion & Integration | Agent 4 | Databricks Apps deployment | Not Started | Frontend + Backend merged | — | — | — | |
-| Ingestion & Integration | Agent 4 | Six-flow walkthrough against deployed URL | Not Started | Deployment complete | — | — | — | |
+| Ingestion & Integration | Agent 4 | Google Form + linked Sheet | Implemented | None | Ready | Verified | — | Form field mapping & sheet config documented in form-config-notes.md |
+| Ingestion & Integration | Agent 4 | Apps Script (`on_form_submit.gs`) against local stub | Implemented | Form created | Local Stub | Verified | — | Tested & verified against test_stub_server.py (201/401/404) |
+| Ingestion & Integration | Agent 4 | Re-point Apps Script to real ingestion endpoint | Not Started | Backend's `/api/ingest/attendance` live | Pending | — | Agent 2 | Awaiting Agent 2 real endpoint implementation |
+| Ingestion & Integration | Agent 4 | `form-config-notes.md` + `demo-script.md` | Implemented | Form + Apps Script working | Complete | Verified | — | Complete with step-by-step 4-part script and emergency curl fallback |
+| Ingestion & Integration | Agent 4 | Databricks Apps deployment | Implemented | Frontend + Backend merged | Configured | Verified | Agent 2/3 | Deployment guide, manifest, env vars and checklist ready |
+| Ingestion & Integration | Agent 4 | Six-flow walkthrough against deployed URL | Not Started | Deployment complete | Pending | — | Agent 1/2/3 | Scheduled for Phase 5 full integration |
 
 ---
 
