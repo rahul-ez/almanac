@@ -1,10 +1,12 @@
 // frontend/src/components/campus/EventCard.tsx
-// Per ui-registry.md & campus-companion-redesign-spec.md:
+// Per ui-registry.md & v2-ui-spec.md:
 // Event name in --text-h2 (Playfair Display, 500). Everything else in Public Sans.
 // Status badge + club name on one baseline.
-// Upcoming = clickable to register / details.
+// Title links to Event Detail (/events/:event_id).
+// Register action invokes registration modal/callback.
 
-import { Calendar, MapPin, Ticket } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Calendar, MapPin, Ticket, ArrowRight } from "lucide-react";
 import type { EventSummary } from "../../api/client";
 import { StatusIndicator } from "../data/StatusIndicator";
 import { AttendanceDatum } from "./AttendanceDatum";
@@ -37,9 +39,14 @@ export function EventCard({ event, onRegister }: EventCardProps) {
         <span className="text-caption text-text-muted truncate">{event.club}</span>
       </div>
 
-      {/* Event name — only serif element in card */}
+      {/* Event name — links to detail */}
       <h3 className="font-display text-h2 font-medium text-text leading-snug line-clamp-2">
-        {event.name}
+        <Link
+          to={`/events/${event.event_id}`}
+          className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:underline"
+        >
+          {event.name}
+        </Link>
       </h3>
 
       {/* Meta: date + time */}
@@ -64,18 +71,31 @@ export function EventCard({ event, onRegister }: EventCardProps) {
           <AttendanceDatum count={event.attendance_count} isLive={isLive} />
         </LiveUpdateHighlight>
 
-        {isUpcoming && onRegister && (
-          <button
-            type="button"
-            onClick={() => onRegister(event)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-primary-subtle text-primary hover:bg-primary hover:text-white text-caption font-semibold transition-colors duration-fast"
-            aria-label={`Register for ${event.name}`}
+        <div className="flex items-center gap-2">
+          {isUpcoming && onRegister && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRegister(event);
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-primary-subtle text-primary hover:bg-primary hover:text-white text-caption font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-label={`Register for ${event.name}`}
+            >
+              <Ticket size={12} strokeWidth={1.5} aria-hidden="true" />
+              <span>Register</span>
+            </button>
+          )}
+          <Link
+            to={`/events/${event.event_id}`}
+            className="text-caption font-semibold text-text-muted hover:text-primary inline-flex items-center gap-0.5 p-1 transition-colors"
+            aria-label={`View details for ${event.name}`}
           >
-            <Ticket size={12} strokeWidth={1.5} aria-hidden="true" />
-            <span>Register</span>
-          </button>
-        )}
+            <ArrowRight size={14} />
+          </Link>
+        </div>
       </div>
     </article>
   );
 }
+
