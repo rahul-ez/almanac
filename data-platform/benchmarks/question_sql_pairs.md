@@ -199,8 +199,14 @@ evidence disclosure should show.)*
 **Expected result:** Genie declines cleanly — no SQL is generated or
 executed. Per `instructions.md`'s SCOPE rules, the response should be
 equivalent to: "I can only answer questions about campus events, rooms,
-teacher availability, and attendance." This must render as the `no_answer` UI
-state (per `context/ui-rules.md`), not `error`.
+teacher availability, attendance, and internships." This must render as the
+`no_answer` UI state (per `context/ui-rules.md`), not `error`.
+
+> Note: the governed surface is **eight** tables (the seven core tables plus
+> `internships` — see `context/data-contracts.md` and
+> `context/genie.md`). "Cafeteria menu" is still out of scope; a question about
+> open internships is now *in* scope and is covered by
+> `v2_question_sql_pairs.md` Section F.
 
 ---
 
