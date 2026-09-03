@@ -2,12 +2,25 @@
 
 ## Data Model Overview
 
-Campus Companion's data model is deliberately small: seven entities, one schema, no
-transformation layer, no secondary store. Every entity exists because a specific product
-flow in `project-overview.md` needs it, and every field exists because either the frontend,
-Genie, or a write flow depends on it.
+Campus Companion's data model is deliberately small: **eight entities** — the seven core
+entities the product's flagship flows are built on, plus `internships`, a standalone
+reference table added during the MVP for the Home page's internships surface — in one
+schema, with no transformation layer and no secondary store. Every entity exists because a
+specific product flow in `project-overview.md` needs it, and every field exists because
+either the frontend, Genie, or a write flow depends on it.
 
-The model has three groups of entities:
+> **Documentation correction (V2, this revision).** Earlier revisions of this document, and
+> `genie.md`/`architecture.md`, describe the model as "seven entities/tables." That count
+> predates `internships`, which is **already live** in `campus_companion.campus` (created by
+> `data-platform/notebooks/01_create_schema.sql`, seeded by `02_seed_data.sql`) and is
+> already consumed by the MVP (`GET /api/internships`, the Home page internships section,
+> and Genie). This revision documents `internships` to the same completeness as every other
+> entity — it does **not** add a new field, table, or semantic (per the Data Contract
+> Change Rules, documenting an already-live entity is a non-breaking clarification). It also
+> supersedes `v2-product-plan.md` Section 17's claim that "there is no `internships` entity
+> … anywhere"; that line is stale and should be corrected at its source.
+
+The model has four groups of entities:
 
 - **Reference/ownership data** — `clubs`, `students`, `rooms` — relatively static
   records that other entities point to.
@@ -16,12 +29,16 @@ The model has three groups of entities:
 - **Activity/registration data** — `event_attendance` — the one entity created by an
   end-user action outside the Admin Panel (the Google Form), and the basis of the live
   "attendance ticks up" demo.
+- **Standalone reference data** — `internships` — a flat list of opportunities with no
+  foreign-key relationship to any other entity; read-only seed data, surfaced on the Home
+  page and answerable by Genie.
 
-Collectively, these seven entities let Genie and the application answer every flagship
+Collectively, the seven core entities let Genie and the application answer every flagship
 question the product commits to (room availability, teacher availability, event attendance
 counts, what's happening on campus) and let the Admin Panel perform the two governed writes
 the product supports (creating events, booking rooms), while the ingestion webhook performs
-the third (recording attendance).
+the third (recording attendance). `internships` adds a browse/ask surface for internship
+opportunities without participating in any write flow.
 
 This document defines the **meaning** of the data. `architecture.md` defines the systems
 that read and write it; `genie.md` (separate file) defines how Genie is configured to use
@@ -40,7 +57,7 @@ it.
 | `room_bookings` | Confirmed reservations of a room for an event's time window; authoritative source for room availability | Admin Panel (create) / Data Platform seed data | `booking_id` | Rooms availability checks, Genie, Newsletter Home |
 | `teacher_timetable` | Time periods during which a named teacher is occupied; authoritative source for teacher availability | Data Platform seed data | `entry_id` | Genie (teacher availability questions) |
 | `event_attendance` | Individual registrations/attendance records for an event; authoritative source for attendance counts | Ingestion webhook (Google Form) / Data Platform seed data | `attendance_id` | Newsletter Home, Genie, live demo loop |
-| `internships` | Internship and job opportunities for students | Data Platform seed data | `internship_id` | Genie, Career guidance queries |
+| `internships` | Internship / job opportunities for students (standalone reference list, no FK to any other entity) | Data Platform seed data | `internship_id` | `GET /api/internships`, Home page internships section, Genie |
 
 ---
 
@@ -205,10 +222,13 @@ for. The central entity of the Newsletter Home view.
 
 **Lifecycle**
 Created by an authorised (`council`) user via the Admin Panel, or by Data Platform seed
-data. There is no edit or delete flow in this hackathon (see Features Out of Scope in
+data. There is no general edit flow and no delete flow (see Features Out of Scope in
 `project-overview.md`); an event that must not proceed is marked `status = "cancelled"`
-rather than deleted — but no UI to perform this transition is required for the MVP; the
-field exists so the semantics are defined if a Data Platform seed scenario needs it.
+rather than deleted. In the MVP no UI performed this transition (it existed only for seed
+scenarios); in **V2** it is exposed by `PATCH /api/events/{event_id}` (cancel-only,
+`council`-only — `v2-api-contracts.md` §8.2). Editing any other field of an event after
+creation (rename, reschedule, room reassignment) still has no write contract and is out of
+V2 scope.
 
 **Invariants**
 - `club_id` must reference an existing, `active = true` club at creation time.
@@ -270,9 +290,11 @@ truth for availability.
 
 **Lifecycle**
 Created by an authorised (`council`) user via the Admin Panel's booking flow, or by Data
-Platform seed data. There is no cancel/edit flow required for the MVP; `status =
-"cancelled"` exists in the model so a future or stretch implementation can support it
-without a schema change, but is not exercised by any required flow.
+Platform seed data. There is no standalone booking-cancel UI, but `status = "cancelled"` is
+reached in two ways: implicitly when a re-booking supersedes a prior confirmed booking for
+the same event (MVP), and — new in **V2** — as the cascade half of an event cancellation
+(`PATCH /api/events/{event_id}`), which sets the event's confirmed booking to `cancelled`
+in the same operation. No schema change was needed for either.
 
 **Invariants**
 - `start_ts`/`end_ts` follow the same half-open-interval convention as `events` (see Time,
@@ -402,23 +424,71 @@ flow — attendance records are append-only for the duration of the hackathon.
 
 ### `internships`
 
+> **Source of this section.** Transcribed from the live table definition in
+> `data-platform/notebooks/01_create_schema.sql` (the DDL that creates
+> `campus_companion.campus.internships`) and its seed rows in `02_seed_data.sql`, which are
+> the authoritative artifacts for the deployed table. If a `DESCRIBE TABLE
+> campus_companion.campus.internships` / `SHOW CREATE TABLE` against the live warehouse ever
+> disagrees with what is written here, the live table wins and this section (and the DDL
+> file) must be corrected to match, per the Data Contract Change Rules.
+
 **Purpose**
-Represents student internship opportunities offered on campus or by partner recruiters.
-Allows students to query upcoming application deadlines, eligible majors, roles, and stipends.
+A flat, standalone list of internship / job opportunities for students — company, role,
+location, stipend, eligibility, application deadline, and an apply link. Exists to power the
+Home page's internships section and to let Genie answer "what internships are open," "which
+close soonest," and eligibility/stipend questions. It is **reference data only**: it has no
+relationship to `students`, `events`, or any other entity, and no write flow in the product
+touches it.
 
 **Fields**
 
 | Field | Type | Required | Description | Allowed / Expected Values | Example |
 |---|---|---|---|---|---|
-| `internship_id` | string | Yes | Canonical identifier | `int_` + 3-digit zero-padded number | `int_001` |
-| `company_name` | string | Yes | Offering company | Free text | `Databricks` |
-| `role_title` | string | Yes | Internship position title | Free text | `Data Engineering Intern` |
-| `location` | string | Yes | Work location | Free text | `Bangalore / Hybrid` |
-| `stipend` | string | No | Compensation details | Free text | `Rs 75,000/month` |
-| `eligibility` | string | No | Eligible batches / departments | Free text | `3rd & 4th Year CS/IT` |
-| `deadline_ts` | timestamp | Yes | Application deadline | Campus-local timestamp | `2026-09-30T23:59:59` |
-| `apply_url` | string | No | Application portal URL | Valid URL | `https://databricks.com/careers` |
-| `status` | string | Yes | Lifecycle status | Closed set: `open`, `closed` | `open` |
+| `internship_id` | string | Yes | Canonical identifier. Immutable once created. | `int_` + 3-digit zero-padded number, assigned sequentially in seed insertion order | `int_001` |
+| `company_name` | string | Yes | Company / organisation offering the internship | Free text (synthetic) | `Databricks` |
+| `role_title` | string | Yes | Role / position title | Free text (synthetic) | `Data Engineering Intern` |
+| `location` | string | Yes | Work location | Free text (synthetic), e.g. `Remote`, `Bangalore`, `Hybrid`, `Campus (Lab 204)` | `Bangalore / Hybrid` |
+| `stipend` | string | No | Compensation details, as free text (**not** a number — it may read `Unpaid`, `Rs 75,000/month`, a range, etc.) | Free text, nullable | `Rs 75,000/month` |
+| `eligibility` | string | No | Eligible batches / branches / prerequisites, as free text (not a structured filter) | Free text, nullable | `3rd & 4th Year CS/IT/Data Science` |
+| `deadline_ts` | timestamp | Yes | Application deadline. Campus-local `TIMESTAMP_NTZ`, no timezone offset — same convention as every other timestamp in this schema. Not a start/end pair, so the half-open-interval rule does not apply; it is a single instant. | ISO 8601 `YYYY-MM-DDTHH:MM:SS` | `2026-09-30T23:59:59` |
+| `apply_url` | string | No | Application portal / link | Free text URL, nullable | `https://databricks.com/careers` |
+| `status` | string | Yes | Lifecycle status | **Closed set: `open`, `closed`.** Default `open`. Enforced by `CHECK (status IN ('open','closed'))`. | `open` |
+
+**Identity**
+`internship_id` is the sole identifier. There is no natural key — `company_name` +
+`role_title` is not guaranteed unique and must not be treated as an identifier.
+
+**Relationships**
+None. `internships` has no foreign key to, and is not referenced by, any other entity.
+`eligibility` mentioning a major (e.g. "CS/IT") is free-text prose, **not** a join to
+`students.major`.
+
+**Lifecycle**
+Created only by Data Platform seed data. No create/edit/delete flow exists in the product
+(consistent with `project-overview.md`'s scope — internships browse is read-only). A
+closed opportunity is marked `status = 'closed'`, not deleted. There is no
+`deadline_ts`-derived automatic status transition: an opportunity whose `deadline_ts` has
+passed keeps whatever `status` it was seeded with unless a future seed/amendment changes it
+— "is it still open" is answered from `status`, and "has the deadline passed" is a separate
+comparison of `deadline_ts` to now.
+
+**Invariants**
+- `internship_id` is immutable.
+- `status` is always exactly `open` or `closed` — never any other value, never null.
+- `company_name`, `role_title`, `location`, `deadline_ts` are always present (non-null).
+- `stipend`, `eligibility`, `apply_url` may be null and a null is a first-class "not
+  specified" value, not an error.
+- No row is ever mutated or deleted at runtime — the table is static seed data for the
+  hackathon.
+
+**Read semantics**
+- "Open" / "available" / "current" internship questions default to `status = 'open'`.
+  `closed` rows are excluded from that default framing but remain queryable for an explicit
+  question ("show me internships that already closed"). This mirrors the
+  `clubs.active` / `events.status = 'cancelled'` default-exclusion rule.
+- "Closing soon" / "next deadline" order by `deadline_ts` ascending, `status = 'open'`.
+- `stipend` and `eligibility` are displayed / quoted verbatim; no parsing or numeric
+  comparison of `stipend` is defined.
 
 **Example Record**
 ```json
@@ -434,6 +504,11 @@ Allows students to query upcoming application deadlines, eligible majors, roles,
   "status": "open"
 }
 ```
+
+**Seeded rows (per `02_seed_data.sql`, for reference):** `int_001` Databricks (open),
+`int_002` Google (open), `int_003` Microsoft (open), `int_004` Tesla (open), `int_005`
+Campus AI Lab (open), `int_006` Amazon (**closed**) — 6 rows, 5 open + 1 closed, so both
+the default-open framing and an explicit "closed" query have a non-empty answer.
 
 ---
 
@@ -455,6 +530,9 @@ Allows students to query upcoming application deadlines, eligible majors, roles,
 - `teacher_timetable.teacher_name` relates entries to "the same teacher" purely by exact
   string equality — there is no enforced uniqueness or foreign key backing this, so
   consistent spelling is a data-quality invariant, not a database constraint.
+- `internships` has **no** relationship — foreign-key or semantic — to any other entity.
+  It is intentionally isolated reference data; do not join it to `students` on
+  `eligibility` text.
 
 ---
 
@@ -522,9 +600,15 @@ Allows students to query upcoming application deadlines, eligible majors, roles,
 
 **Status transitions**
 - `events.status`: `scheduled → cancelled` is the only transition; `cancelled` is terminal.
+  In V2 this transition has an API trigger — `PATCH /api/events/{event_id}` with
+  `{"status":"cancelled"}` (`v2-api-contracts.md` §8.2), `council`-only — which the MVP did
+  not expose.
 - `room_bookings.status`: `confirmed → cancelled` is the only transition, occurring either
-  through an explicit cancellation (not implemented as a flow in this hackathon) or
-  implicitly when superseded by a re-booking for the same event (see above).
+  (a) implicitly when superseded by a re-booking for the same event, or (b) as the cascade
+  half of an event cancellation — cancelling an event sets its confirmed booking to
+  `cancelled` and nulls `events.room_id` in the same operation, per the Room booking /
+  availability rule above. Both halves happen together; a cancelled event never leaves a
+  still-`confirmed` booking occupying its room.
 
 ---
 
@@ -755,8 +839,8 @@ contract violation (see Data Integrity Invariants).
 All data in this project, in every environment, is synthetic. No real names, emails, IDs,
 faculty information, or institutional records may be used at any point.
 
-**Entities requiring synthetic records:** all seven — `clubs`, `students`, `rooms`,
-`events`, `room_bookings`, `teacher_timetable`, `event_attendance`.
+**Entities requiring synthetic records:** all eight — `clubs`, `students`, `rooms`,
+`events`, `room_bookings`, `teacher_timetable`, `event_attendance`, `internships`.
 
 **Minimum useful record counts**
 
@@ -769,6 +853,7 @@ faculty information, or institutional records may be used at any point.
 | `room_bookings` | ≥ 1 per booked event (roughly 7–8) | Enough overlap and non-overlap scenarios to exercise conflict logic |
 | `teacher_timetable` | 15–20 entries across 5–6 named teachers | Enough for both free and fully-booked teachers at plausible query times |
 | `event_attendance` | 30–50 | Enough for meaningfully different attendance counts across events, plus at least one repeat-registrant case |
+| `internships` | 5–6 (≥ 1 `closed`) | Enough for a non-trivial Home page list and for both the default `open`-only framing and an explicit `closed` query to return a non-empty answer; varied `deadline_ts` so "closing soon" ordering is meaningful. Currently seeded with 6 (5 open + 1 closed). |
 
 **Required relationships between synthetic records**
 - Every seeded `event` must reference an existing `club_id`.
@@ -835,11 +920,11 @@ faculty information, or institutional records may be used at any point.
   dependency order (`clubs`, `students`, `rooms` → `events` → `room_bookings`,
   `teacher_timetable` → `event_attendance`) so that every foreign key reference in later
   inserts points to an already-inserted row. No seed script may reference an ID it has not
-  yet created.
+  yet created. `internships` has no foreign keys and may be inserted at any point.
 
 **Reset/regeneration**
 - The full seed dataset must be re-runnable idempotently: re-running the seed script(s)
-  should either (a) fully truncate and reload all seven tables, or (b) be safely skippable
+  should either (a) fully truncate and reload all eight tables, or (b) be safely skippable
   if data already exists. Partial/duplicate reseeding that leaves two conflicting copies of
   the same logical record is not acceptable, since it would silently violate the
   uniqueness invariants above.
@@ -934,13 +1019,73 @@ faculty information, or institutional records may be used at any point.
   change discovered only in running code as a defect to be reported, not silently adapted
   to.
 
+### Change log
+
+| Date | Change | Type | Notes |
+|---|---|---|---|
+| 2026-09-03 | Documented the `internships` entity to full-contract completeness (identity, relationships, lifecycle, invariants, read semantics). Corrected "seven entities/tables" → "eight" wording throughout. | Non-breaking clarification | `internships` was already live (`01_create_schema.sql`, `02_seed_data.sql`) and already consumed by the MVP; no field/table/semantic added. Supersedes `v2-product-plan.md` §17's stale "no `internships` … anywhere" claim. |
+
+---
+
+## V2 Proposed Amendments / Open Data Dependencies
+
+These are **proposals**, not part of the contract yet. Nothing here is to be implemented by
+any workstream until it is accepted and moved into the body of this document, per the
+Change Rules above.
+
+### PA-1 — status-change timestamps for the Activity feed (`NEW DATA DEPENDENCY`)
+
+- **Change requested:** add one nullable `TIMESTAMP_NTZ` column, `status_changed_at`, to
+  `events` and to `room_bookings`, set whenever `status` transitions (i.e. on
+  `scheduled → cancelled` and `confirmed → cancelled`).
+- **Reason:** `v2-api-contracts.md` §6.1 (`GET /api/activity`) can only surface *creation*
+  events today, because `events.created_at` / `room_bookings.created_at` are the only
+  reliable timestamps. A cancellation has no timestamp, so "event X was cancelled at time
+  Y" cannot be placed in a chronological feed. `PATCH /api/events/{event_id}` (§8.2) now
+  makes cancellation a real, frequent operation, which sharpens this gap.
+- **Affected context:** `v2-api-contracts.md` §6.1; `v2-product-plan.md` §6.9; the
+  Activity feed UI in `v2-ui-spec.md`.
+- **Affected data contract:** `events` and `room_bookings` field tables; Business Rules
+  (status transitions); Data Integrity Invariants.
+- **Suggested solution:** nullable column, written by the same backend write path that
+  performs the transition (`db.cancel_event`), backfilled `NULL` for existing rows.
+  Non-breaking (optional column). Genie needs no change unless a "what changed recently"
+  question type is later added to the benchmark set.
+- **Blocking:** does **not** block V2 Must-Ship. `GET /api/activity` ships as a
+  creation-only feed (its documented fallback). Only a cancellation-inclusive Activity feed
+  is blocked.
+
+### PA-2 — per-actor attribution for writes (not recommended for V2)
+
+- **Change requested:** capture *who* performed a governed write (event create, booking,
+  cancellation).
+- **Reason:** the Activity feed and any audit view can currently only say "a `council`
+  session did this" — there is no per-user identity in the session model
+  (`v2-api-contracts.md` §2.1's `display_name` is an unverified UX convenience, never
+  written to any table).
+- **Affected data contract:** would require a genuinely new `activity_log`-style entity
+  *and* a real identity concept — both explicitly out of scope per `project-overview.md`
+  (no accounts) and `v2-product-plan.md` §6.1/§14.
+- **Suggested solution:** none for V2. Documented only so a future agent does not read the
+  Activity feed's lack of attribution as a bug.
+- **Blocking:** nothing in V2 scope.
+
+### PA-3 — internships browse/detail API surface (product-scope question, not a data gap)
+
+- The `internships` table fully supports a browse/detail surface today; there is no data
+  gap. Whether V2 adds `GET /api/internships/{id}` and a dedicated internships page
+  (analogous to Events) is a `v2-product-plan.md` scope decision, not a
+  `data-contracts.md` one. Flagged here only for traceability; `GET /api/internships`
+  (list) already exists in the MVP.
+
 ---
 
 ## Data Contract Checklist
 
-- [x] Every core entity (`clubs`, `students`, `rooms`, `events`, `room_bookings`,
-      `teacher_timetable`, `event_attendance`) has a complete contract: purpose, fields,
-      identity, relationships, lifecycle, invariants, example record.
+- [x] Every entity — the seven core (`clubs`, `students`, `rooms`, `events`,
+      `room_bookings`, `teacher_timetable`, `event_attendance`) plus `internships` — has a
+      complete contract: purpose, fields, identity, relationships, lifecycle, invariants,
+      example record.
 - [x] Every field has one precise, unambiguous meaning and documented allowed values.
 - [x] All relationships, cardinalities, and referential-integrity rules are explicit,
       including the non-FK `events.room_id` denormalization and the name-only teacher
@@ -965,5 +1110,6 @@ faculty information, or institutional records may be used at any point.
       which belongs in `genie.md`).
 - [x] Four independent agents can implement against this document without needing to ask
       what any entity or field means.
-- [x] The model is small enough — seven entities, no transformation layer, no audit
-      infrastructure — to realistically build within the 12-hour hackathon constraint.
+- [x] The model is small enough — eight entities (seven core + standalone `internships`),
+      no transformation layer, no audit infrastructure — to realistically build within the
+      12-hour hackathon constraint.

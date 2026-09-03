@@ -27,8 +27,14 @@ responsible for:
 
 ## Data Surface
 
-Genie is configured over exactly the seven tables defined in `data-contracts.md`, in a
-single Unity Catalog schema. No other data is in Genie's scope.
+Genie is configured over the tables defined in `data-contracts.md`, in a single Unity
+Catalog schema. No other data is in Genie's scope.
+
+> **Table count correction.** This section previously read "exactly the seven tables." The
+> live schema has **eight**: the seven below plus `internships`, a standalone reference
+> table that has been live and Genie-answerable since the MVP (see `data-contracts.md`'s
+> Data Model Overview correction note). `internships` has no relationship to the other
+> seven — it is only ever queried on its own.
 
 | Table | Purpose for Genie |
 |---|---|
@@ -39,6 +45,7 @@ single Unity Catalog schema. No other data is in Genie's scope.
 | `room_bookings` | Authoritative source for room occupancy/conflict — Genie must use this, not `events.room_id`, to determine availability |
 | `teacher_timetable` | Authoritative source for teacher occupancy |
 | `event_attendance` | Authoritative source for attendance/registration counts |
+| `internships` | Standalone list of internship opportunities — company, role, location, stipend, eligibility, `deadline_ts`, `status` (`open`/`closed`). "Open internships" defaults to `status = 'open'`; order "closing soon" by `deadline_ts` ascending. No join to any other table. |
 
 **Trusted SQL function:** `room_is_free(room_id, ts)` — encodes the half-open-interval
 overlap check against `room_bookings` (joined to `events.status`) exactly as defined in
@@ -83,9 +90,9 @@ These are the interpretation rules Genie must apply consistently. Full definitio
 
 Configure the Genie Space with these behavioral rules:
 
-1. **Answer only from the seven governed tables listed above.** Never use outside
-   knowledge, assumptions about the institution, or general information about universities
-   in general to answer a question.
+1. **Answer only from the eight governed tables listed above** (the seven core tables plus
+   `internships`). Never use outside knowledge, assumptions about the institution, or
+   general information about universities in general to answer a question.
 2. **Use the canonical definitions above for "free," "attending," "upcoming," and room
    types** — do not substitute an intuitive-but-different reading.
 3. **Do not invent information.** If a name, room, or teacher isn't in the data, say the
@@ -95,10 +102,12 @@ Configure the Genie Space with these behavioral rules:
    since that is the overwhelmingly common intent; but "is the professor free" with no name
    or time given should prompt for the missing detail rather than answering for an
    arbitrary teacher.
-5. **Refuse unsupported questions cleanly.** Anything outside the seven tables (course
+5. **Refuse unsupported questions cleanly.** Anything outside the eight tables (course
    grades, admissions, financial data, general knowledge, non-campus topics) gets a direct
-   "I can only answer questions about campus events, rooms, teacher availability, and
-   attendance" — not a best-effort guess.
+   "I can only answer questions about campus events, rooms, teacher availability,
+   attendance, and internships" — not a best-effort guess. (The deployed Genie Space
+   instructions in `data-platform/genie/instructions.md` already use this eight-table
+   wording.)
 6. **Never attempt a write.** Genie only ever issues read (SELECT) queries. If a user
    phrases a request as an action ("book Lab 204 for me," "register me for the workshop"),
    Genie must respond that it can't perform that action and point the user to the
@@ -154,7 +163,7 @@ used:
 - **Table and column descriptions (required):** every table and every non-obvious column
   (especially `status` enums, `room_id` on `events` vs. `room_bookings`, `student_id`
   nullability) gets a plain-English comment in Unity Catalog. This is the single highest-
-  leverage tuning step and must be done for all seven tables before anything else.
+  leverage tuning step and must be done for all eight tables before anything else.
 - **Synonyms (required):** map the informal terms students actually use to the canonical
   schema — "free room" → available room via `room_is_free`; "prof"/"professor" →
   `teacher_name`; "CS" → `"Computer Science"` (matches `students.major`); club abbreviations
@@ -230,6 +239,32 @@ a synthetic seed scenario required by `data-contracts.md`.
 10. An out-of-scope question ("what's the cafeteria menu today?") → Genie declines cleanly
     rather than guessing.
 
+**Reference SQL + hand-traced expected answers for these ten:**
+`data-platform/benchmarks/question_sql_pairs.md`.
+
+### V2 benchmark additions
+
+V2 adds no new Genie *behavior*, but it adds surfaces (Event Detail, Campus Pulse,
+Analytics) whose backing reads must be provable against the same governed data and the same
+canonical semantics. A second reference set —
+`data-platform/benchmarks/v2_question_sql_pairs.md` — covers:
+
+- **Event detail:** one event's full record (name, topic, description, time, room via
+  confirmed booking, club, `attendance_count`).
+- **Campus Pulse:** events now / next upcoming / rooms free vs. total / registrations today
+  / next major event — all at one consistent "now", reusing `room_is_free`-equivalent
+  overlap logic.
+- **Analytics families:** total/upcoming events, total & average registrations, active
+  clubs, rooms booked now; popular / low / zero-attendance events; room utilization and
+  peak booking hour; per-club event count and registrations.
+- **Genie → Action row shapes:** representative event-row and free-room-row results that a
+  frontend heuristic can map to View Event / Register / Book Room, plus the recommendation
+  that benchmark SQL consistently select and alias `event_id` / `room_id`.
+- **Internships:** open internships, "closing soonest", eligibility/stipend lookups.
+
+Same status caveat as the original ten — reference SQL and expected results are hand-traced
+against the seed rows, not yet run against a live Genie Space.
+
 ---
 
 ## Failure Handling
@@ -240,9 +275,9 @@ a synthetic seed scenario required by `data-contracts.md`.
 - **Ambiguous question (missing name, time, or room type Genie can't safely default):**
   Genie asks for the missing detail rather than guessing; it does not silently pick an
   arbitrary teacher, room, or event.
-- **Unsupported question (outside the seven tables or non-campus topic):** Genie responds
-  that it can only answer questions about campus events, rooms, teachers, and attendance —
-  it does not attempt a best-effort answer from general knowledge.
+- **Unsupported question (outside the eight tables or non-campus topic):** Genie responds
+  that it can only answer questions about campus events, rooms, teachers, attendance, and
+  internships — it does not attempt a best-effort answer from general knowledge.
 - **Requested write (e.g. "book this room for me"):** Genie declines to perform it and
   points the user to the appropriate app flow (Admin Panel or Event Registration); it never
   attempts to execute or simulate a write.

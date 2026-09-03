@@ -242,16 +242,22 @@ exist and have been reconciled once (the `internships` gap and a font/icon-strok
 
 ## Agent 1 — Data + Genie
 
+Branch: `agent-1-data-genie-v2`. This pass ran with **no live Databricks workspace
+credentials** (no CLI, no `.databrickscfg`, no `DATABRICKS_*`), so live Genie Space
+creation and live benchmark execution remain blocked; all static/doc deliverables are
+complete and hand-traced against the seed data.
+
 | Task | Owner | Status | Dependency | Notes |
 |---|---|---|---|---|
-| Unblock + pass original 10 Genie benchmarks | Agent 1 | `[!]` Blocked | Manual Genie Space creation in Databricks UI (inherited MVP blocker, not new V2 scope) | Same blocker as the MVP-era Genie Readiness table above; gates all V2 Genie work |
-| Document `internships` entity in `data-contracts.md` | Agent 1 | `[ ]` Not Started | None — can start immediately | Confirmed real per Decision Log above; must be documented from the live table, not guessed; blocks Agent 2 (API shape) and Agent 3 (UI) from treating it as stable |
-| V2 benchmark questions — event detail lookups | Agent 1 | `[ ]` Not Started | Genie Space live | Supports `GET /api/events/{event_id}` (`v2-api-contracts.md` §3.2) |
-| V2 benchmark questions — Campus Pulse aggregates | Agent 1 | `[ ]` Not Started | Genie Space live | Supports `v2-api-contracts.md` §4.1 |
-| V2 benchmark questions — Analytics metric families | Agent 1 | `[ ]` Not Started | Genie Space live | Supports `v2-api-contracts.md` §5.1–5.4 |
-| Validate `free_rooms_at`/`teacher_is_free`/`attendance_count` remain single source for V2 | Agent 1 | `[ ]` Not Started | None | Prevents Agent 2 from re-deriving these a second time |
-| Identify + document genuine new data gaps (e.g. Activity's `status_changed_at`) | Agent 1 | `[ ]` Not Started | None | Documented as proposed `data-contracts.md` amendment only, not built unilaterally |
-| Genie → Action result support (row shapes Agent 3/4 need to recognize) | Agent 1 | `[ ]` Not Started | Benchmark questions above | Coordinate column aliasing with Data Platform per `v2-api-contracts.md` §7.2's "recommended reliability improvement" |
+| Unblock + pass original 10 Genie benchmarks | Agent 1 | `[!]` Blocked | Manual Genie Space creation in Databricks UI (inherited MVP blocker) | Reference SQL + hand-traced expected answers ready in `data-platform/benchmarks/question_sql_pairs.md`; **live run still required**. Genie config artifacts (`instructions.md`, `synonyms.md`) already updated for the 8-table surface. |
+| Document `internships` entity in `data-contracts.md` | Agent 1 | `[x]` Complete | None | Documented to full-contract completeness (identity, relationships=none, lifecycle, invariants, read semantics, seeded rows) from the authoritative DDL (`01_create_schema.sql`) + seed (`02_seed_data.sql`). "Seven entities/tables" → "eight" corrected across `data-contracts.md` + `genie.md`. Change-log entry added. Flagged `v2-product-plan.md` §17 as stale (Agent-1 cannot edit it here — needs owner). Verify against live `DESCRIBE TABLE` when access exists. |
+| V2 benchmark questions — event detail lookups | Agent 1 | `[x]` Complete (hand-traced) | Genie Space live for the *live* run | `data-platform/benchmarks/v2_question_sql_pairs.md` §A — full record, cancelled→null room, 404. |
+| V2 benchmark questions — Campus Pulse aggregates | Agent 1 | `[x]` Complete (hand-traced) | Genie Space live for the *live* run | `v2_question_sql_pairs.md` §B — events now/upcoming, room counts, registrations today, next major, incl. the half-open boundary at 15:00. |
+| V2 benchmark questions — Analytics metric families | Agent 1 | `[x]` Complete (hand-traced) | Genie Space live for the *live* run | `v2_question_sql_pairs.md` §C — overview, events (incl. exactly 2 zero-attendance), rooms (utilization + peak hour = 10:00), clubs (registrations sum to 47). Matches `v2-api-contracts.md` §5.1–5.4 shapes. |
+| Validate `free_rooms_at`/`teacher_is_free`/`attendance_count` remain single source for V2 | Agent 1 | `[x]` Complete (code review) | None | Reviewed Agent 2's `agent-2-backend-v2` `db.py`: `get_campus_pulse`, analytics, `get_events` all reuse the exact half-open confirmed-booking-non-cancelled-event predicate from `room_is_free`; `attendance_count` is raw `COUNT(*)` everywhere; teacher unknown-name → `None`/404 preserved. **No second definition introduced.** Documented in `v2_question_sql_pairs.md` conventions. |
+| Identify + document genuine new data gaps (e.g. Activity's `status_changed_at`) | Agent 1 | `[x]` Complete | None | `data-contracts.md` → new "V2 Proposed Amendments / Open Data Dependencies": **PA-1** `status_changed_at` on `events`+`room_bookings` (Activity cancellation history) — proposed, not built, non-blocking; **PA-2** per-actor attribution — not recommended (needs identity, out of scope); **PA-3** internships browse/detail API — product-scope question, no data gap. |
+| Genie → Action result support (row shapes Agent 3/4 need to recognize) | Agent 1 | `[x]` Complete (documented) | Benchmark questions above | `v2_question_sql_pairs.md` §E — event rows expose `event_id`+`name`+`start_ts`; free-room rows expose `room_id`+`name`+`type` (and correctly exclude `room_005` at its 15:00 start instant). Recommendation recorded: Genie Space SQL for event/room-availability families should consistently select+alias `event_id`/`room_id`. This is a Genie Space config action for the live pass, not a contract change. |
+| Reconcile Genie config + benchmarks docs for the 8-table surface | Agent 1 | `[x]` Complete | None | `data-platform/README.md` updated (8 tables, live-run status, Space-ID recording location = `GENIE_SPACE_ID` env var); `benchmarks/question_sql_pairs.md` #10 note added. |
 
 ---
 
