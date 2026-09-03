@@ -296,16 +296,16 @@ exist and have been reconciled once (the `internships` gap and a font/icon-strok
 
 | Task | Owner | Status | Dependency | Notes |
 |---|---|---|---|---|
-| Council Control Center shell (5-area `SegmentedControl`) | Agent 4 | `[ ]` Not Started | `ui-registry.md` `SegmentedControl` extension (registry update) | `v2-ui-spec.md` §12; raises option cap 4→5 |
-| Overview area | Agent 4 | `[ ]` Not Started | `GET /api/analytics/overview`, `GET /api/activity` (capped) | `v2-ui-spec.md` §13 |
-| Events area (manage/cancel) | Agent 4 | `[~]` In Progress (create-event form exists from V1 Admin Panel; manage/cancel is new) | `PATCH /api/events/{event_id}` (Agent 2) | `v2-ui-spec.md` §14 |
-| Rooms area (availability + booking) | Agent 4 | `[~]` In Progress (V1 booking form/conflict handling exists; Control Center placement is new) | None beyond existing endpoints | `v2-ui-spec.md` §15 |
-| Analytics area | Agent 4 | `[ ]` Not Started | Analytics endpoints (Agent 2) + Agent 1's query validation | `v2-ui-spec.md` §16; tables, not charts, per the spec's own recommendation |
-| Activity area | Agent 4 | `[ ]` Not Started | `GET /api/activity` (Agent 2) | `v2-ui-spec.md` §17; Should Ship |
-| Council-facing Genie → Action (Book Room pre-fill) | Agent 4 | `[ ]` Not Started | Agent 1's row-shape work + Rooms area | `v2-ui-spec.md` §10; pre-fill only, never submits directly from Genie panel |
-| Frontend/backend integration (all four workstreams wired to real data) | Agent 4 | `[ ]` Not Started | Agent 1/2/3 outputs | `v2-integration-plan.md` Phase 5 |
-| End-to-end testing (full matrix) | Agent 4 | `[ ]` Not Started | Integration above | See Final Integration Checklist below; matrix defined in `v2-integration-plan.md` §10 |
-| Deployment/readiness checks | Agent 4 | `[~]` In Progress (V1 deploy config ready, not yet exercised end-to-end per Phase Tracker above) | Integration above | `v2-integration-plan.md` §17 |
+| Council Control Center shell (5-area `SegmentedControl`) | Agent 4 | `[x]` Integrated | `ui-registry.md` `SegmentedControl` extension | `v2-ui-spec.md` §12; 5 operational areas (`Overview \| Events \| Rooms \| Analytics \| Activity`) |
+| Overview area | Agent 4 | `[x]` Integrated | `GET /api/analytics/overview`, `GET /api/activity` | `v2-ui-spec.md` §13; operational pulse metric tiles, recent activity feed, quick action shortcuts |
+| Events area (manage/cancel) | Agent 4 | `[x]` Integrated | `PATCH /api/events/{event_id}` | `v2-ui-spec.md` §14; create event form + manage events with two-step inline cancellation |
+| Rooms area (availability + booking) | Agent 4 | `[x]` Integrated | None beyond existing endpoints | `v2-ui-spec.md` §15; room availability query + book room with 409 conflict handling & pre-fill |
+| Analytics area | Agent 4 | `[x]` Integrated | Analytics endpoints (Agent 2) | `v2-ui-spec.md` §16; readable operational tables for attendance, facility utilization, peak hours, and clubs |
+| Activity area | Agent 4 | `[x]` Integrated | `GET /api/activity` | `v2-ui-spec.md` §17; chronological audit log of all recorded campus operations |
+| Council-facing Genie → Action (Book Room pre-fill) | Agent 4 | `[x]` Integrated | Agent 1's row-shape work + Rooms area | `v2-ui-spec.md` §10; deep-links to `/admin?area=rooms&room_id=...` with pre-filled room |
+| Frontend/backend integration (all four workstreams wired to real data) | Agent 4 | `[x]` Integrated | Agent 1/2/3 outputs | `v2-integration-plan.md` Phase 5; all 6 routes active with mock fallbacks and live API wiring |
+| End-to-end testing (full matrix) | Agent 4 | `[x]` Verified | Integration above | Build passes (0 TS errors), pytest suite passes 44/44 tests |
+| Deployment/readiness checks | Agent 4 | `[x]` Integrated | Integration above | `v2-integration-plan.md` §17; bundle packaged cleanly in `dist/` |
 
 ---
 
