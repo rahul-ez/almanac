@@ -1,13 +1,17 @@
 from datetime import datetime
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app import db
 from app.auth import require_council
 from app.models import (
+    CancelEventResponse,
     CreateEventRequest,
     CreateEventResponse,
+    EventDetailResponse,
     EventsResponse,
+    PatchEventRequest,
     RegisterEventRequest,
     RegisterEventResponse,
 )
@@ -16,12 +20,41 @@ router = APIRouter()
 
 
 @router.get("/events", response_model=EventsResponse)
-def list_events(upcoming: bool = True) -> EventsResponse:
+def list_events(
+    upcoming: bool = True,
+    date_from: datetime | None = Query(default=None, alias="from"),
+    date_to: datetime | None = Query(default=None, alias="to"),
+    club_id: str | None = None,
+    status: Literal["scheduled", "cancelled"] | None = None,
+    q: str | None = None,
+) -> EventsResponse:
+    """v2-api-contracts.md §3.1 — additive filters (`from`/`to`/`club_id`/
+    `status`/`q`) and additive response fields (`topic`/`end_ts`/`status`). An
+    unrecognized `status` value is rejected by the `Literal` type as HTTP 422."""
     try:
-        rows = db.get_events(upcoming=upcoming)
+        rows = db.get_events(
+            upcoming=upcoming,
+            date_from=date_from,
+            date_to=date_to,
+            club_id=club_id,
+            status=status,
+            q=q,
+        )
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"events": [], "error": str(exc)})
     return EventsResponse(events=rows)
+
+
+@router.get("/events/{event_id}", response_model=EventDetailResponse)
+def get_event(event_id: str) -> EventDetailResponse:
+    """v2-api-contracts.md §3.2 — full single-event record for Event Detail."""
+    try:
+        row = db.get_event_detail(event_id)
+    except db.WarehouseError as exc:
+        raise HTTPException(status_code=502, detail={"error": str(exc)})
+    if row is None:
+        raise HTTPException(status_code=404, detail={"error": "event_not_found"})
+    return EventDetailResponse(**row)
 
 
 @router.post("/events/register", response_model=RegisterEventResponse, status_code=201)
@@ -64,3 +97,20 @@ def create_event(body: CreateEventRequest, request: Request) -> CreateEventRespo
         raise HTTPException(status_code=502, detail={"error": str(exc)})
     return CreateEventResponse(**created)
 
+
+@router.patch("/events/{event_id}", response_model=CancelEventResponse)
+def patch_event(event_id: str, body: PatchEventRequest, request: Request) -> CancelEventResponse:
+    """v2-api-contracts.md §8.2 — narrow scope: the `scheduled → cancelled`
+    transition only. council-only; cascades booking cancellation in `db.py`."""
+    require_council(request)
+    if body.status != "cancelled":
+        raise HTTPException(status_code=422, detail={"error": "invalid_status_transition"})
+    try:
+        result = db.cancel_event(event_id)
+    except db.NotFoundError:
+        raise HTTPException(status_code=404, detail={"error": "event_not_found"})
+    except db.InvalidStatusTransitionError:
+        raise HTTPException(status_code=422, detail={"error": "invalid_status_transition"})
+    except db.WarehouseError as exc:
+        raise HTTPException(status_code=502, detail={"error": str(exc)})
+    return CancelEventResponse(**result)

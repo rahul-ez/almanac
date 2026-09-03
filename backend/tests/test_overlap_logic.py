@@ -56,3 +56,30 @@ class TestRangesOverlap:
 
     def test_one_range_fully_inside_another_overlaps(self):
         assert _ranges_overlap(T15, datetime(2026, 9, 5, 20, 0, 0), T16, T17) is True
+
+
+class TestExplicitHourBoundaries:
+    """The contract's named example (v2 task §13): 09:00–10:00 and 10:00–11:00
+    are adjacent, not overlapping; both overlap 09:30–10:30."""
+
+    T09 = datetime(2026, 9, 5, 9, 0, 0)
+    T10 = datetime(2026, 9, 5, 10, 0, 0)
+    T11 = datetime(2026, 9, 5, 11, 0, 0)
+    T0930 = datetime(2026, 9, 5, 9, 30, 0)
+    T1030 = datetime(2026, 9, 5, 10, 30, 0)
+
+    def test_0900_1000_and_1000_1100_do_not_overlap(self):
+        assert _ranges_overlap(self.T09, self.T10, self.T10, self.T11) is False
+        assert _ranges_overlap(self.T10, self.T11, self.T09, self.T10) is False
+
+    def test_0900_1000_and_0930_1030_overlap(self):
+        assert _ranges_overlap(self.T09, self.T10, self.T0930, self.T1030) is True
+
+    def test_1000_1100_and_0930_1030_overlap(self):
+        assert _ranges_overlap(self.T10, self.T11, self.T0930, self.T1030) is True
+
+    def test_instant_at_1000_is_free_of_a_0900_1000_booking(self):
+        assert _instant_occupied(self.T09, self.T10, self.T10) is False
+
+    def test_instant_at_1000_is_occupied_by_a_1000_1100_booking(self):
+        assert _instant_occupied(self.T10, self.T11, self.T10) is True

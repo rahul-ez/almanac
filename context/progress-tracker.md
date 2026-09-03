@@ -257,19 +257,25 @@ exist and have been reconciled once (the `internships` gap and a font/icon-strok
 
 ## Agent 2 — Backend
 
+Branch: `agent-2-backend-v2`. Test status: **100 passed, 1 skipped** (`pytest backend/tests/`).
+The skip is `test_root_serves_frontend_html` — now skipped (not failed) when `frontend/dist`
+is absent (API-only dev/CI); it was an unconditional pre-existing failure in that state.
+MVP-era baseline was 43 passed / 1 failed(env).
+
 | Task | Owner | Status | Dependency | Notes |
 |---|---|---|---|---|
-| `GET /api/session`, `POST /api/session/end`, additive `POST /api/session` fields | Agent 2 | `[ ]` Not Started | None — can scaffold against frozen contract now | `v2-api-contracts.md` §2; `session/end` is optional/Should Ship |
-| `GET /api/events` extensions (`from`/`to`/`club_id`/`status`/`q`) | Agent 2 | `[ ]` Not Started | None — additive, backward-compatible | `v2-api-contracts.md` §3.1 |
-| `GET /api/events/{event_id}` | Agent 2 | `[ ]` Not Started | `internships` documentation if event/internship data ever intersects (currently does not) | `v2-api-contracts.md` §3.2 |
-| `GET /api/campus/pulse` | Agent 2 | `[ ]` Not Started | Agent 1's Campus Pulse benchmark validation (for confidence, not a hard code dependency) | `v2-api-contracts.md` §4.1 |
-| Analytics endpoints (`overview`/`events`/`rooms`/`clubs`) | Agent 2 | `[ ]` Not Started | Agent 1's analytics query validation | `v2-api-contracts.md` §5 |
-| `GET /api/activity` | Agent 2 | `[ ]` Not Started | None (derived from existing `created_at` fields only) | `v2-api-contracts.md` §6.1; Should Ship |
-| `PATCH /api/events/{event_id}` (cancel-only) | Agent 2 | `[ ]` Not Started | None | `v2-api-contracts.md` §8.2; cascades booking cancellation per `data-contracts.md` |
-| `genie_client.py` adjustments for V2 question types | Agent 2 | `[ ]` Not Started | Agent 1's benchmark work | Coordinated change, not unilateral |
-| Server-side authorization for every new endpoint | Agent 2 | `[ ]` Not Started | Endpoints above | Same role-check-before-query pattern already Verified for V1 |
-| Booking conflict enforcement reuse (no new logic) | Agent 2 | `[x]` Complete (V1) | None | Centralized overlap formula already Verified; V2 introduces no new conflict logic |
-| Structured V2 error envelope | Agent 2 | `[ ]` Not Started | Endpoints above | `v2-api-contracts.md` §9 |
+| `GET /api/session`, `POST /api/session/end`, additive `POST /api/session` fields | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §2. Display name/email carried in signed cookie only (base64url-encoded segments, 5-part variant); V1 3-part cookie format unchanged so `test_auth.py` still passes. `backend/app/routers/session.py`, `backend/app/auth.py` (`read_session`). |
+| `GET /api/events` extensions (`from`/`to`/`club_id`/`status`/`q`) | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §3.1. Additive response fields `topic`/`end_ts`/`status`. `status` is `Literal` → bad value = 422. `from`/`to` half-open. `q` = parameterized `LIKE` over name/description. `db.get_events()` extended in place. |
+| `GET /api/events/{event_id}` | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §3.2. `db.get_event_detail()`; 404 `{"error":"event_not_found"}`; `room`/`room_id` null when unbooked. |
+| `GET /api/campus/pulse` | Agent 2 | `[x]` Implemented | Agent 1 benchmark validation (confidence only) | `v2-api-contracts.md` §4.1. Single composite read, one `now` instant, reuses the room-overlap predicate. 502-no-partial-payload on any sub-query failure. `backend/app/routers/campus.py`, `db.get_campus_pulse()`. |
+| Analytics endpoints (`overview`/`events`/`rooms`/`clubs`) | Agent 2 | `[x]` Implemented | Agent 1's analytics query validation | `v2-api-contracts.md` §5. All council-only (403 before any query). Direct aggregates only, no new tables/metrics. `backend/app/routers/analytics.py`, `db.get_analytics_*()`. `range` echoed with `from`/`to` keys. |
+| `GET /api/activity` | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §6.1. council-only. Merges `events.created_at` + `room_bookings.created_at`, desc, `limit` 1–50 (422 outside). No cancellation/attribution events (flagged NEW DATA DEPENDENCY in §6.1). `backend/app/routers/activity.py`, `db.get_activity()`. |
+| `PATCH /api/events/{event_id}` (cancel-only) | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §8.2. council-only; only `scheduled → cancelled`; cascades the confirmed `room_booking` to `cancelled` and nulls `events.room_id`, per `data-contracts.md`. 404 / 422 `invalid_status_transition` / 502. `db.cancel_event()`, `db.InvalidStatusTransitionError`. |
+| `genie_client.py` adjustments for V2 question types | Agent 2 | `[ ]` Not Started | Agent 1's benchmark work | Coordinated change, not unilateral. No change needed yet — `POST /api/genie/ask` envelope is unchanged in V2 (§7); Genie → Action is a frontend-only pattern over existing `rows`. |
+| Server-side authorization for every new endpoint | Agent 2 | `[x]` Implemented | Endpoints above | `require_council()` is the first statement in every council-only handler (all Analytics, Activity, `PATCH /api/events/{id}`), before any query. Reads role only from the signed cookie; `display_name`/`display_email` are never an authz signal. |
+| Booking conflict enforcement reuse (no new logic) | Agent 2 | `[x]` Complete (V1) | None | Centralized overlap formula already Verified; V2 introduces no new conflict logic. Added explicit 09:00–10:00 / 10:00–11:00 boundary tests (`test_overlap_logic.py`). |
+| Structured V2 error envelope | Agent 2 | `[x]` Implemented | Endpoints above | `v2-api-contracts.md` §9. All new endpoints use `{"error": "<code>"}`; 400/403/404/409/422/502 mapped per §9; `main.py` top-level handler still catches unhandled → 502, no traceback. |
+| V2 backend test suite | Agent 2 | `[x]` Implemented | Endpoints above | `test_session_v2.py`, `test_events_v2.py`, `test_campus_pulse.py`, `test_analytics.py`, `test_activity.py`, plus boundary additions to `test_overlap_logic.py`. Asserts returned data, not just 200s. `db`/`genie_client` monkeypatched — live-warehouse verification still pending Checkpoint 2. |
 
 ---
 

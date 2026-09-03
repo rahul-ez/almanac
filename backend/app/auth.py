@@ -13,6 +13,7 @@ the dependency footprint at zero for this one piece.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import time
@@ -34,11 +35,35 @@ def _sign(payload: str) -> str:
     ).hexdigest()
 
 
-def issue_cookie_value(role: str) -> str:
-    """role:expiry:signature — see verify_role() for the matching parse."""
+def _b64(value: str) -> str:
+    return base64.urlsafe_b64encode(value.encode("utf-8")).decode("ascii")
+
+
+def _unb64(value: str) -> str:
+    return base64.urlsafe_b64decode(value.encode("ascii")).decode("utf-8")
+
+
+def issue_cookie_value(
+    role: str,
+    display_name: str | None = None,
+    display_email: str | None = None,
+) -> str:
+    """Signed cookie value. Two shapes, both `<payload>:<signature>`:
+
+    - No display fields (the V1 case, unchanged): payload is `role:expiry`.
+    - With a V2 display name/email (student sessions only, per
+      v2-api-contracts.md §2.1): payload is `role:expiry:<b64 name>:<b64 email>`.
+      The values are base64url-encoded so they can never contain the `:`
+      delimiter. They are UX convenience only and are never an authorization
+      signal — only `role` is.
+
+    See read_session() for the matching parse."""
     assert role in _VALID_ROLES
     expiry = str(int(time.time()) + _COOKIE_MAX_AGE_SECONDS)
-    payload = f"{role}:{expiry}"
+    if not display_name and not display_email:
+        payload = f"{role}:{expiry}"
+    else:
+        payload = f"{role}:{expiry}:{_b64(display_name or '')}:{_b64(display_email or '')}"
     return f"{payload}:{_sign(payload)}"
 
 
@@ -50,29 +75,52 @@ def resolve_role(access_code: str | None) -> str:
     return "student"
 
 
-def verify_role(request: Request) -> str:
-    """Re-derive the caller's role from the signed cookie, independent of
-    anything the client claims elsewhere. A missing, malformed, expired, or
-    tampered cookie is always treated as 'student' — never as an error to
+def read_session(request: Request) -> dict[str, str]:
+    """Re-derive the caller's session claims from the signed cookie, independent
+    of anything the client claims elsewhere. A missing, malformed, expired, or
+    tampered cookie always resolves to `{"role": "student"}` — never an error to
     retry, never defaulted to 'council'. This is the ONLY authorization
-    mechanism for the two protected write endpoints; the frontend hiding a
-    button is never sufficient (context/code-standards.md, Authentication and
-    Authorization)."""
+    mechanism for the protected endpoints; the frontend hiding a button is never
+    sufficient (context/code-standards.md, Authentication and Authorization).
+
+    Returns `{"role": ...}` and, for a valid V2 display-carrying cookie, the
+    optional `display_name` / `display_email` claims (v2-api-contracts.md §2.2).
+    """
     raw = request.cookies.get(COOKIE_NAME)
     if not raw:
-        return "student"
+        return {"role": "student"}
     parts = raw.split(":")
-    if len(parts) != 3:
-        return "student"
-    role, expiry, signature = parts
+    display: dict[str, str] = {}
+    if len(parts) == 3:
+        role, expiry, signature = parts
+        payload = f"{role}:{expiry}"
+    elif len(parts) == 5:
+        role, expiry, enc_name, enc_email, signature = parts
+        payload = f"{role}:{expiry}:{enc_name}:{enc_email}"
+        try:
+            name = _unb64(enc_name) if enc_name else ""
+            email = _unb64(enc_email) if enc_email else ""
+        except Exception:
+            return {"role": "student"}
+        if name:
+            display["display_name"] = name
+        if email:
+            display["display_email"] = email
+    else:
+        return {"role": "student"}
+
     if role not in _VALID_ROLES:
-        return "student"
-    expected_signature = _sign(f"{role}:{expiry}")
-    if not hmac.compare_digest(signature, expected_signature):
-        return "student"
+        return {"role": "student"}
+    if not hmac.compare_digest(signature, _sign(payload)):
+        return {"role": "student"}
     if not expiry.isdigit() or int(expiry) < time.time():
-        return "student"
-    return role
+        return {"role": "student"}
+    return {"role": role, **display}
+
+
+def verify_role(request: Request) -> str:
+    """The role claim only — used by the write endpoints' authorization check."""
+    return read_session(request)["role"]
 
 
 def require_council(request: Request) -> None:

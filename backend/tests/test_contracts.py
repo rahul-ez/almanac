@@ -8,6 +8,7 @@ warehouse/Genie Space)."""
 
 from datetime import datetime
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import db, genie_client
@@ -86,7 +87,7 @@ class TestListEvents:
         monkeypatch.setattr(
             db,
             "get_events",
-            lambda upcoming=True: [
+            lambda **kwargs: [
                 {
                     "event_id": "evt_001",
                     "name": "AI Workshop",
@@ -103,7 +104,7 @@ class TestListEvents:
         assert resp.json()["events"][0]["attendance_count"] == 5
 
     def test_warehouse_error_shape(self, client: TestClient, monkeypatch):
-        def boom(upcoming=True):
+        def boom(**kwargs):
             raise db.WarehouseError("connection refused")
 
         monkeypatch.setattr(db, "get_events", boom)
@@ -312,6 +313,16 @@ class TestIngestAttendance:
 # --- Static Frontend ---------------------------------------------------------
 class TestStaticFrontend:
     def test_root_serves_frontend_html(self, client: TestClient):
+        # main.py only mounts the static bundle when `frontend/dist` exists
+        # (it is absent during backend-only development / CI without a Vite
+        # build). The assertion below only applies once that build is present.
+        from pathlib import Path
+
+        import app.main as main_module
+
+        if not (Path(main_module.__file__).resolve().parent.parent.parent / "frontend" / "dist").is_dir():
+            pytest.skip("frontend/dist not built — API-only mode, nothing mounted at '/'")
+
         resp = client.get("/")
         assert resp.status_code == 200
         assert "<!doctype html>" in resp.text.lower()
