@@ -176,6 +176,87 @@ export interface RegisterEventResponse {
   error?: string;
 }
 
+export interface CancelEventResponse {
+  event_id: string;
+  status: "cancelled";
+  error?: string;
+}
+
+export interface AnalyticsOverviewResponse {
+  range: { from: string | null; to: string | null };
+  total_events: number;
+  upcoming_events: number;
+  total_registrations: number;
+  average_attendance_per_event: number;
+  active_clubs: number;
+  rooms_booked_now: number;
+  rooms_total: number;
+  error?: string;
+}
+
+export interface PopularEventItem {
+  event_id: string;
+  name: string;
+  attendance_count: number;
+}
+
+export interface AnalyticsEventsResponse {
+  range: { from: string | null; to: string | null };
+  popular_events: PopularEventItem[];
+  low_attendance_events: PopularEventItem[];
+  zero_attendance_events: PopularEventItem[];
+  error?: string;
+}
+
+export interface RoomUtilizationItem {
+  room_id: string;
+  name: string;
+  type: string;
+  confirmed_bookings: number;
+  total_booked_hours: number;
+}
+
+export interface PeakBookingPeriodItem {
+  hour_of_day: number;
+  booking_count: number;
+}
+
+export interface AnalyticsRoomsResponse {
+  range: { from: string | null; to: string | null };
+  room_utilization: RoomUtilizationItem[];
+  peak_booking_periods: PeakBookingPeriodItem[];
+  error?: string;
+}
+
+export interface ClubActivityItem {
+  club_id: string;
+  name: string;
+  active: boolean;
+  event_count: number;
+  total_registrations: number;
+}
+
+export interface AnalyticsClubsResponse {
+  range: { from: string | null; to: string | null };
+  club_activity: ClubActivityItem[];
+  error?: string;
+}
+
+export interface ActivityItem {
+  type: "event_created" | "room_booked" | "event_cancelled";
+  at: string;
+  event_id?: string;
+  name?: string;
+  booking_id?: string;
+  room?: string;
+  event_name?: string;
+}
+
+export interface ActivityResponse {
+  activity: ActivityItem[];
+  error?: string;
+}
+
 // ── Mock flag ─────────────────────────────────────────────────────────────────
 // Defaults to false (connecting to live Backend at /api). Set VITE_USE_MOCK=true for mock UI development.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -532,5 +613,168 @@ export async function registerForEvent(payload: RegisterEventRequest): Promise<R
     body: JSON.stringify(payload),
   });
 }
+
+/** Cancel an event (council only, PATCH /api/events/{event_id}). */
+export async function cancelEvent(eventId: string): Promise<CancelEventResponse> {
+  if (USE_MOCK) {
+    return {
+      event_id: eventId,
+      status: "cancelled",
+    };
+  }
+  return apiFetch<CancelEventResponse>(`/api/events/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "cancelled" }),
+  });
+}
+
+/** Get council operational overview analytics (GET /api/analytics/overview). */
+export async function getAnalyticsOverview(
+  from?: string,
+  to?: string
+): Promise<AnalyticsOverviewResponse> {
+  if (USE_MOCK) {
+    return {
+      range: { from: from ?? null, to: to ?? null },
+      total_events: 12,
+      upcoming_events: 4,
+      total_registrations: 47,
+      average_attendance_per_event: 3.9,
+      active_clubs: 5,
+      rooms_booked_now: 4,
+      rooms_total: 9,
+    };
+  }
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString() ? `?${params}` : "";
+  return apiFetch<AnalyticsOverviewResponse>(`/api/analytics/overview${qs}`);
+}
+
+/** Get event analytics breakdown (GET /api/analytics/events). */
+export async function getAnalyticsEvents(
+  from?: string,
+  to?: string,
+  limit = 10
+): Promise<AnalyticsEventsResponse> {
+  if (USE_MOCK) {
+    return {
+      range: { from: from ?? null, to: to ?? null },
+      popular_events: [
+        { event_id: "evt_001", name: "AI Workshop", attendance_count: 42 },
+        { event_id: "evt_002", name: "Robotics Demo Day", attendance_count: 18 },
+        { event_id: "evt_004", name: "Web3 Hackathon Prep", attendance_count: 15 },
+      ],
+      low_attendance_events: [
+        { event_id: "evt_005", name: "Photography Walk", attendance_count: 8 },
+      ],
+      zero_attendance_events: [
+        { event_id: "evt_003", name: "Design Sprint", attendance_count: 0 },
+        { event_id: "evt_006", name: "Guest Lecture: Quantum Computing", attendance_count: 0 },
+      ],
+    };
+  }
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  if (limit) params.set("limit", String(limit));
+  const qs = params.toString() ? `?${params}` : "";
+  return apiFetch<AnalyticsEventsResponse>(`/api/analytics/events${qs}`);
+}
+
+/** Get room utilization analytics (GET /api/analytics/rooms). */
+export async function getAnalyticsRooms(
+  from?: string,
+  to?: string
+): Promise<AnalyticsRoomsResponse> {
+  if (USE_MOCK) {
+    return {
+      range: { from: from ?? null, to: to ?? null },
+      room_utilization: [
+        { room_id: "room_005", name: "Lab 204", type: "Lab", confirmed_bookings: 6, total_booked_hours: 12.0 },
+        { room_id: "room_006", name: "Auditorium", type: "Auditorium", confirmed_bookings: 4, total_booked_hours: 10.5 },
+        { room_id: "room_001", name: "Classroom 101", type: "Classroom", confirmed_bookings: 3, total_booked_hours: 6.0 },
+      ],
+      peak_booking_periods: [
+        { hour_of_day: 14, booking_count: 5 },
+        { hour_of_day: 15, booking_count: 8 },
+        { hour_of_day: 16, booking_count: 6 },
+        { hour_of_day: 17, booking_count: 4 },
+      ],
+    };
+  }
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString() ? `?${params}` : "";
+  return apiFetch<AnalyticsRoomsResponse>(`/api/analytics/rooms${qs}`);
+}
+
+/** Get club activity analytics (GET /api/analytics/clubs). */
+export async function getAnalyticsClubs(
+  from?: string,
+  to?: string
+): Promise<AnalyticsClubsResponse> {
+  if (USE_MOCK) {
+    return {
+      range: { from: from ?? null, to: to ?? null },
+      club_activity: [
+        { club_id: "club_001", name: "AI Club", active: true, event_count: 3, total_registrations: 58 },
+        { club_id: "club_002", name: "Robotics Society", active: true, event_count: 2, total_registrations: 28 },
+        { club_id: "club_003", name: "Coding Club", active: true, event_count: 2, total_registrations: 20 },
+        { club_id: "club_004", name: "Design Club", active: true, event_count: 1, total_registrations: 10 },
+      ],
+    };
+  }
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString() ? `?${params}` : "";
+  return apiFetch<AnalyticsClubsResponse>(`/api/analytics/clubs${qs}`);
+}
+
+/** Get recent activity feed (GET /api/activity). */
+export async function getActivity(limit = 20): Promise<ActivityResponse> {
+  if (USE_MOCK) {
+    return {
+      activity: [
+        {
+          type: "room_booked",
+          at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+          booking_id: "bk_0004",
+          room: "Lab 204",
+          event_id: "evt_002",
+          event_name: "Robotics Demo Day",
+        },
+        {
+          type: "event_created",
+          at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+          event_id: "evt_004",
+          name: "Web3 Hackathon Prep",
+        },
+        {
+          type: "room_booked",
+          at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          booking_id: "bk_0001",
+          room: "Auditorium",
+          event_id: "evt_001",
+          event_name: "AI Workshop",
+        },
+        {
+          type: "event_created",
+          at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+          event_id: "evt_001",
+          name: "AI Workshop",
+        },
+      ],
+    };
+  }
+  const params = new URLSearchParams();
+  if (limit) params.set("limit", String(limit));
+  const qs = params.toString() ? `?${params}` : "";
+  return apiFetch<ActivityResponse>(`/api/activity${qs}`);
+}
+
 
 
