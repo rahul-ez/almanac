@@ -21,6 +21,7 @@ from typing import Any, Iterator
 
 from databricks import sql as dbsql
 
+from app.cache import cache
 from app.config import settings
 
 logger = logging.getLogger("campus_companion.db")
@@ -190,6 +191,11 @@ def _next_id(table: str, id_column: str, prefix: str, width: int) -> str:
 def get_free_rooms(room_type: str | None, at: datetime) -> list[dict[str, Any]]:
     """Rooms with no CONFIRMED booking (belonging to a non-cancelled event)
     occupying `at`. Mirrors room_is_free() exactly — see module docstring."""
+    cache_key = f"free_rooms:{room_type}:{at.strftime('%Y%m%d%H%M') if at else 'now'}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     sql = f"""
         SELECT r.room_id, r.name, r.type
         FROM {SCHEMA}.rooms r
@@ -205,7 +211,9 @@ def get_free_rooms(room_type: str | None, at: datetime) -> list[dict[str, Any]]:
           )
         ORDER BY r.name
     """
-    return _query(sql, {"room_type": room_type, "at": at})
+    res = _query(sql, {"room_type": room_type, "at": at})
+    cache.set(cache_key, res, ttl_seconds=15.0)
+    return res
 
 
 def room_exists(room_id: str) -> bool:
@@ -278,6 +286,11 @@ def get_events(
     `q` is a simple case-insensitive substring match over name/description.
     An unknown `club_id` simply yields an empty list, never an error.
     """
+    cache_key = f"events:{upcoming}:{date_from}:{date_to}:{club_id}:{status}:{q}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     clauses: list[str] = []
     params: dict[str, Any] = {}
 
@@ -321,7 +334,9 @@ def get_events(
         {where}
         ORDER BY e.start_ts
     """
-    return _query(sql, params)
+    res = _query(sql, params)
+    cache.set(cache_key, res, ttl_seconds=20.0)
+    return res
 
 
 def get_event_detail(event_id: str) -> dict[str, Any] | None:
@@ -329,6 +344,11 @@ def get_event_detail(event_id: str) -> dict[str, Any] | None:
     (v2-api-contracts.md §3.2). Returns None if the event does not exist.
     `room`/`room_id` are null when the event has no confirmed booking, since
     `events.room_id` is kept in sync with the confirmed booking (or nulled)."""
+    cache_key = f"event_detail:{event_id}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     rows = _query(
         f"""
         SELECT
@@ -353,7 +373,10 @@ def get_event_detail(event_id: str) -> dict[str, Any] | None:
         """,
         {"event_id": event_id},
     )
-    return rows[0] if rows else None
+    res = rows[0] if rows else None
+    if res is not None:
+        cache.set(cache_key, res, ttl_seconds=20.0)
+    return res
 
 
 def cancel_event(event_id: str) -> dict[str, Any]:
@@ -386,6 +409,7 @@ def cancel_event(event_id: str) -> dict[str, Any]:
             WHERE event_id = :event_id AND status = 'confirmed'""",
         {"event_id": event_id},
     )
+    cache.invalidate_all()
     return {"event_id": event_id, "status": "cancelled"}
 
 
@@ -501,7 +525,7 @@ def create_booking(
         f"UPDATE {SCHEMA}.events SET room_id = :room_id WHERE event_id = :event_id",
         {"room_id": room_id, "event_id": event_id},
     )
-
+    cache.invalidate_all()
     return {
         "booking_id": booking_id,
         "room_id": room_id,
@@ -577,6 +601,7 @@ def create_event(
             },
         )
 
+    cache.invalidate_all()
     return {
         "event_id": event_id,
         "name": name,
@@ -631,11 +656,17 @@ def insert_attendance(
             "registered_at": registered_at,
         },
     )
+    cache.invalidate_all()
     return attendance_id
 
 
 def get_event_attendees(event_id: str) -> dict[str, Any]:
     """Retrieve full attendee details (name, email, registration time, student info) for an event."""
+    cache_key = f"attendees:{event_id}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     resolved = resolve_event_id(event_id)
     if not resolved:
         raise NotFoundError("event_not_found")
@@ -660,12 +691,14 @@ def get_event_attendees(event_id: str) -> dict[str, Any]:
         ORDER BY a.registered_at DESC
     """
     rows = _query(sql, {"event_id": event_id})
-    return {
+    res = {
         "event_id": event_id,
         "event_name": event_name,
         "total_count": len(rows),
         "attendees": rows,
     }
+    cache.set(cache_key, res, ttl_seconds=20.0)
+    return res
 
 
 # =============================================================================
@@ -673,6 +706,11 @@ def get_event_attendees(event_id: str) -> dict[str, Any]:
 # =============================================================================
 def get_internships(open_only: bool = True) -> list[dict[str, Any]]:
     """Returns internship opportunities from Delta Lake."""
+    cache_key = f"internships:{open_only}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     where = "WHERE status = 'open'" if open_only else ""
     sql = f"""
         SELECT
@@ -689,7 +727,9 @@ def get_internships(open_only: bool = True) -> list[dict[str, Any]]:
         {where}
         ORDER BY deadline_ts ASC
     """
-    return _query(sql)
+    res = _query(sql)
+    cache.set(cache_key, res, ttl_seconds=60.0)
+    return res
 
 
 # =============================================================================
@@ -713,6 +753,11 @@ def get_campus_pulse(at: datetime) -> dict[str, Any]:
     is introduced (v2-api-contracts.md §4.1). If any underlying query fails the
     whole call raises WarehouseError; the router returns 502 with no partial
     payload."""
+    cache_key = f"pulse:{at.strftime('%Y%m%d%H%M') if at else 'now'}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     occupied = _ROOM_OCCUPIED_AT.format(schema=SCHEMA)
 
     events_now = _query(
@@ -763,7 +808,7 @@ def get_campus_pulse(at: datetime) -> dict[str, Any]:
             "name": first["name"],
             "start_ts": first["start_ts"],
         }
-    return {
+    res = {
         "at": at,
         "events_now": events_now,
         "events_upcoming": events_upcoming,
@@ -772,6 +817,8 @@ def get_campus_pulse(at: datetime) -> dict[str, Any]:
         "registrations_today": registrations[0]["n"] if registrations else 0,
         "next_major_event": next_major,
     }
+    cache.set(cache_key, res, ttl_seconds=15.0)
+    return res
 
 
 # =============================================================================
@@ -793,6 +840,11 @@ def _range_clauses(column: str, date_from: datetime | None, date_to: datetime | 
 def get_analytics_overview(
     date_from: datetime | None, date_to: datetime | None
 ) -> dict[str, Any]:
+    cache_key = f"analytics_overview:{date_from}:{date_to}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     explicit_range = date_from is not None or date_to is not None
 
     ev_params: dict[str, Any] = {}
@@ -837,7 +889,7 @@ def get_analytics_overview(
     )[0]
 
     average = round(total_registrations / total_events, 1) if total_events else 0.0
-    return {
+    res = {
         "range": {"from": date_from, "to": date_to},
         "total_events": total_events,
         "upcoming_events": upcoming_events,
@@ -847,12 +899,19 @@ def get_analytics_overview(
         "rooms_booked_now": rooms["booked"],
         "rooms_total": rooms["total"],
     }
+    cache.set(cache_key, res, ttl_seconds=30.0)
+    return res
 
 
 def get_analytics_events(
     date_from: datetime | None, date_to: datetime | None, limit: int
 ) -> dict[str, Any]:
     limit = max(1, min(int(limit), 100))  # bounded int, safe to inline
+    cache_key = f"analytics_events:{date_from}:{date_to}:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     params: dict[str, Any] = {}
     clauses = _range_clauses("e.start_ts", date_from, date_to, params)
     where = " AND ".join(clauses) if clauses else "TRUE"
@@ -878,17 +937,24 @@ def get_analytics_events(
         f"WHERE t.attendance_count = 0 ORDER BY t.event_id",
         params,
     )
-    return {
+    res = {
         "range": {"from": date_from, "to": date_to},
         "popular_events": popular,
         "low_attendance_events": low,
         "zero_attendance_events": zero,
     }
+    cache.set(cache_key, res, ttl_seconds=30.0)
+    return res
 
 
 def get_analytics_rooms(
     date_from: datetime | None, date_to: datetime | None
 ) -> dict[str, Any]:
+    cache_key = f"analytics_rooms:{date_from}:{date_to}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     params: dict[str, Any] = {}
     booking_filter = " AND ".join(
         ["b.status = 'confirmed'"] + _range_clauses("b.start_ts", date_from, date_to, params)
@@ -919,16 +985,23 @@ def get_analytics_rooms(
     )
     for row in utilization:
         row["total_booked_hours"] = float(row["total_booked_hours"] or 0)
-    return {
+    res = {
         "range": {"from": date_from, "to": date_to},
         "room_utilization": utilization,
         "peak_booking_periods": peak,
     }
+    cache.set(cache_key, res, ttl_seconds=30.0)
+    return res
 
 
 def get_analytics_clubs(
     date_from: datetime | None, date_to: datetime | None
 ) -> dict[str, Any]:
+    cache_key = f"analytics_clubs:{date_from}:{date_to}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     params: dict[str, Any] = {}
     ev_clauses = _range_clauses("e.start_ts", date_from, date_to, params)
     ev_filter = " AND ".join(ev_clauses) if ev_clauses else "TRUE"
@@ -945,7 +1018,9 @@ def get_analytics_clubs(
         """,
         params,
     )
-    return {"range": {"from": date_from, "to": date_to}, "club_activity": rows}
+    res = {"range": {"from": date_from, "to": date_to}, "club_activity": rows}
+    cache.set(cache_key, res, ttl_seconds=30.0)
+    return res
 
 
 # =============================================================================
@@ -956,6 +1031,10 @@ def get_activity(limit: int = 20) -> list[dict[str, Any]]:
     reverse-chronological feed. No cancellation events / user attribution —
     those need schema additions flagged as NEW DATA DEPENDENCY in §6.1."""
     limit = max(1, min(int(limit), 50))  # bounded int, safe to inline
+    cache_key = f"activity:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     events = _query(
         f"""
@@ -999,5 +1078,7 @@ def get_activity(limit: int = 20) -> list[dict[str, Any]]:
         for row in bookings
     ]
     items.sort(key=lambda it: it["at"], reverse=True)
-    return items[:limit]
+    res = items[:limit]
+    cache.set(cache_key, res, ttl_seconds=15.0)
+    return res
 
