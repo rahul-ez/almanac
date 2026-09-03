@@ -292,7 +292,8 @@ async function apiFetch<T>(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw Object.assign(new Error(body?.error ?? res.statusText), { status: res.status, body });
+    const message = body?.detail?.message || body?.message || body?.detail?.error || body?.error || res.statusText;
+    throw Object.assign(new Error(message), { status: res.status, body });
   }
   return res.json() as Promise<T>;
 }

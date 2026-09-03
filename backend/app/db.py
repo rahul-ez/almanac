@@ -54,6 +54,10 @@ class BookingConflictError(Exception):
         super().__init__("booking_conflict")
 
 
+class DuplicateRegistrationError(Exception):
+    """The student/email has already registered for this event."""
+
+
 class WarehouseError(Exception):
     """The SQL warehouse call itself failed (connection, timeout, bad SQL)."""
 
@@ -636,9 +640,19 @@ def insert_attendance(
     if not event_exists(event_id):
         raise NotFoundError("unknown_event")
 
+    # Check for duplicate registration by email (case-insensitive) for this event
+    existing = _query(
+        f"""SELECT attendance_id FROM {SCHEMA}.event_attendance
+            WHERE event_id = :event_id AND LOWER(registrant_email) = LOWER(:email)
+            LIMIT 1""",
+        {"event_id": event_id, "email": registrant_email.strip()},
+    )
+    if existing:
+        raise DuplicateRegistrationError("already_registered")
+
     student_rows = _query(
         f"SELECT student_id FROM {SCHEMA}.students WHERE LOWER(email) = LOWER(:email)",
-        {"email": registrant_email},
+        {"email": registrant_email.strip()},
     )
     student_id = student_rows[0]["student_id"] if student_rows else None
 
@@ -651,8 +665,8 @@ def insert_attendance(
             "attendance_id": attendance_id,
             "event_id": event_id,
             "student_id": student_id,
-            "registrant_name": registrant_name,
-            "registrant_email": registrant_email,
+            "registrant_name": registrant_name.strip(),
+            "registrant_email": registrant_email.strip(),
             "registered_at": registered_at,
         },
     )

@@ -83,9 +83,16 @@ export function RegisterModal({
       if (res.status === "ok") {
         setSuccessId(res.attendance_id);
         if (onSuccess) onSuccess(res.attendance_id);
+      } else if (res.error) {
+        setError(res.error);
       }
-    } catch {
-      setError("Registration could not be completed. Please check your details and try again.");
+    } catch (err: any) {
+      const message =
+        err?.message ||
+        err?.body?.detail?.message ||
+        err?.body?.error ||
+        "Registration could not be completed. Please check your details and try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }

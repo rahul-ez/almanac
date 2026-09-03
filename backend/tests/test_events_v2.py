@@ -246,3 +246,35 @@ class TestEventAttendees:
         resp = council_client.get("/api/events/evt_404/attendees")
         assert resp.status_code == 404
         assert resp.json() == {"error": "event_not_found"}
+
+
+class TestRegisterEventEndpoint:
+    def test_success(self, client: TestClient, monkeypatch):
+        monkeypatch.setattr(db, "insert_attendance", lambda **kwargs: "att_001")
+        resp = client.post(
+            "/api/events/register",
+            json={
+                "event_id": "evt_001",
+                "registrant_name": "Alice Chen",
+                "registrant_email": "alice@campus.edu",
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json() == {"status": "ok", "attendance_id": "att_001"}
+
+    def test_duplicate_registration_is_409(self, client: TestClient, monkeypatch):
+        def boom(**kwargs):
+            raise db.DuplicateRegistrationError("already_registered")
+
+        monkeypatch.setattr(db, "insert_attendance", boom)
+        resp = client.post(
+            "/api/events/register",
+            json={
+                "event_id": "evt_001",
+                "registrant_name": "Alice Chen",
+                "registrant_email": "alice@campus.edu",
+            },
+        )
+        assert resp.status_code == 409
+        assert resp.json()["status"] == "duplicate"
+        assert resp.json()["error"] == "already_registered"

@@ -82,6 +82,15 @@ def register_event(body: RegisterEventRequest) -> RegisterEventResponse:
         )
     except db.NotFoundError:
         raise HTTPException(status_code=404, detail={"status": "unknown_event"})
+    except db.DuplicateRegistrationError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": "duplicate",
+                "error": "already_registered",
+                "message": "You are already registered for this event with this email address.",
+            },
+        )
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"status": "error", "error": str(exc)})
     return RegisterEventResponse(status="ok", attendance_id=attendance_id)
