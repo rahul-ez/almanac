@@ -244,14 +244,14 @@ exist and have been reconciled once (the `internships` gap and a font/icon-strok
 
 | Task | Owner | Status | Dependency | Notes |
 |---|---|---|---|---|
-| Unblock + pass original 10 Genie benchmarks | Agent 1 | `[!]` Blocked | Manual Genie Space creation in Databricks UI (inherited MVP blocker, not new V2 scope) | Same blocker as the MVP-era Genie Readiness table above; gates all V2 Genie work |
-| Document `internships` entity in `data-contracts.md` | Agent 1 | `[ ]` Not Started | None — can start immediately | Confirmed real per Decision Log above; must be documented from the live table, not guessed; blocks Agent 2 (API shape) and Agent 3 (UI) from treating it as stable |
-| V2 benchmark questions — event detail lookups | Agent 1 | `[ ]` Not Started | Genie Space live | Supports `GET /api/events/{event_id}` (`v2-api-contracts.md` §3.2) |
-| V2 benchmark questions — Campus Pulse aggregates | Agent 1 | `[ ]` Not Started | Genie Space live | Supports `v2-api-contracts.md` §4.1 |
-| V2 benchmark questions — Analytics metric families | Agent 1 | `[ ]` Not Started | Genie Space live | Supports `v2-api-contracts.md` §5.1–5.4 |
-| Validate `free_rooms_at`/`teacher_is_free`/`attendance_count` remain single source for V2 | Agent 1 | `[ ]` Not Started | None | Prevents Agent 2 from re-deriving these a second time |
-| Identify + document genuine new data gaps (e.g. Activity's `status_changed_at`) | Agent 1 | `[ ]` Not Started | None | Documented as proposed `data-contracts.md` amendment only, not built unilaterally |
-| Genie → Action result support (row shapes Agent 3/4 need to recognize) | Agent 1 | `[ ]` Not Started | Benchmark questions above | Coordinate column aliasing with Data Platform per `v2-api-contracts.md` §7.2's "recommended reliability improvement" |
+| Document `internships` entity in `data-contracts.md` | Agent 1 | `[x]` Implemented | None | `data-contracts.md` #internships, `genie.md` updated to 8 tables |
+| V2 benchmark questions — event detail lookups | Agent 1 | `[x]` Implemented | None | `data-platform/benchmarks/v2_question_sql_pairs.md` |
+| V2 benchmark questions — Campus Pulse aggregates | Agent 1 | `[x]` Implemented | None | Supports `v2-api-contracts.md` §4.1 |
+| V2 benchmark questions — Analytics metric families | Agent 1 | `[x]` Implemented | None | Supports `v2-api-contracts.md` §5.1–5.4 |
+| Validate `free_rooms_at`/`teacher_is_free`/`attendance_count` remain single source for V2 | Agent 1 | `[x]` Implemented | None | Byte-identical formula verified across db queries and UDF |
+| Identify + document genuine new data gaps (e.g. Activity's `status_changed_at`) | Agent 1 | `[x]` Implemented | None | Documented as proposed amendments (PA-1/2/3) in `data-contracts.md` |
+| Genie → Action result support (row shapes Agent 3/4 need to recognize) | Agent 1 | `[x]` Implemented | None | Event, room, and attendance row shapes documented |
+| Unblock + pass original 10 Genie benchmarks | Agent 1 | `[!]` Blocked on UI | Manual Genie Space creation in Databricks UI | Blocked on Databricks UI credentials; reference SQL + expected results complete |
 
 ---
 
@@ -259,17 +259,17 @@ exist and have been reconciled once (the `internships` gap and a font/icon-strok
 
 | Task | Owner | Status | Dependency | Notes |
 |---|---|---|---|---|
-| `GET /api/session`, `POST /api/session/end`, additive `POST /api/session` fields | Agent 2 | `[ ]` Not Started | None — can scaffold against frozen contract now | `v2-api-contracts.md` §2; `session/end` is optional/Should Ship |
-| `GET /api/events` extensions (`from`/`to`/`club_id`/`status`/`q`) | Agent 2 | `[ ]` Not Started | None — additive, backward-compatible | `v2-api-contracts.md` §3.1 |
-| `GET /api/events/{event_id}` | Agent 2 | `[ ]` Not Started | `internships` documentation if event/internship data ever intersects (currently does not) | `v2-api-contracts.md` §3.2 |
-| `GET /api/campus/pulse` | Agent 2 | `[ ]` Not Started | Agent 1's Campus Pulse benchmark validation (for confidence, not a hard code dependency) | `v2-api-contracts.md` §4.1 |
-| Analytics endpoints (`overview`/`events`/`rooms`/`clubs`) | Agent 2 | `[ ]` Not Started | Agent 1's analytics query validation | `v2-api-contracts.md` §5 |
-| `GET /api/activity` | Agent 2 | `[ ]` Not Started | None (derived from existing `created_at` fields only) | `v2-api-contracts.md` §6.1; Should Ship |
-| `PATCH /api/events/{event_id}` (cancel-only) | Agent 2 | `[ ]` Not Started | None | `v2-api-contracts.md` §8.2; cascades booking cancellation per `data-contracts.md` |
-| `genie_client.py` adjustments for V2 question types | Agent 2 | `[ ]` Not Started | Agent 1's benchmark work | Coordinated change, not unilateral |
-| Server-side authorization for every new endpoint | Agent 2 | `[ ]` Not Started | Endpoints above | Same role-check-before-query pattern already Verified for V1 |
-| Booking conflict enforcement reuse (no new logic) | Agent 2 | `[x]` Complete (V1) | None | Centralized overlap formula already Verified; V2 introduces no new conflict logic |
-| Structured V2 error envelope | Agent 2 | `[ ]` Not Started | Endpoints above | `v2-api-contracts.md` §9 |
+| `GET /api/session`, `POST /api/session/end`, additive `POST /api/session` fields | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §2; session management with signed display claims |
+| `GET /api/events` extensions (`from`/`to`/`club_id`/`status`/`q`) | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §3.1; parameterized filtering & range support |
+| `GET /api/events/{event_id}` | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §3.2; detail lookup with 404 handler |
+| `GET /api/campus/pulse` | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §4.1; single composite read |
+| Analytics endpoints (`overview`/`events`/`rooms`/`clubs`) | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §5; council-protected direct aggregates |
+| `GET /api/activity` | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §6.1; chronological audit timeline |
+| `PATCH /api/events/{event_id}` (cancel-only) | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §8.2; cascades booking cancellation |
+| `genie_client.py` adjustments for V2 question types | Agent 2 | `[x]` Integrated | None | POST /api/genie/ask proxy preserves rows for action heuristics |
+| Server-side authorization for every new endpoint | Agent 2 | `[x]` Integrated | Endpoints above | Signed cookie verification enforced on all writes & analytics |
+| Booking conflict enforcement reuse (no new logic) | Agent 2 | `[x]` Complete (V1) | None | Centralized overlap formula Verified |
+| Structured V2 error envelope | Agent 2 | `[x]` Integrated | Endpoints above | `v2-api-contracts.md` §9; standard JSON error format |
 
 ---
 
