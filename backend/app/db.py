@@ -1,9 +1,15 @@
-"""All SQL execution for Campus Companion lives here.
+"""All SQL execution for Campus Companion lives here — no other backend module
+may import `databricks.sql` or build a SQL string. See
+context/architecture.md's Client/Server Patterns and context/code-standards.md's
+Data Access Standards.
 
 Every query against `rooms`/`room_bookings`/`teacher_timetable` uses the exact
 half-open-interval formula centralized in `_instant_occupied()` /
 `_ranges_overlap()` below, matching context/data-contracts.md's Time, Date, and
-Status Semantics.
+Status Semantics and mirroring the `room_is_free` trusted SQL function Data
+Platform registered with Genie (context/data-platform/notebooks/
+03_trusted_functions.sql) — so Genie and this backend can never disagree about
+"is this room free."
 """
 
 from __future__ import annotations
@@ -23,14 +29,20 @@ SCHEMA = settings.unity_catalog_schema  # e.g. "campus_companion.campus"
 
 
 # =============================================================================
-# Typed errors
+# Typed errors — routers catch these and map them to the documented HTTP shapes
+# (see context/code-standards.md's Error Handling table).
 # =============================================================================
 class NotFoundError(Exception):
-    """A referenced entity does not exist."""
+    """A referenced entity (room/event/club/teacher) does not exist."""
 
     def __init__(self, kind: str):
-        self.kind = kind
+        self.kind = kind  # e.g. "room_not_found", "event_not_found"
         super().__init__(kind)
+
+
+class InvalidStatusTransitionError(Exception):
+    """A requested status change is not one of data-contracts.md's allowed
+    transitions (only `scheduled → cancelled` for events)."""
 
 
 class BookingConflictError(Exception):
@@ -41,30 +53,34 @@ class BookingConflictError(Exception):
         super().__init__("booking_conflict")
 
 
-class InvalidStatusTransitionError(Exception):
-    """Event status transition is not permitted (e.g. non-scheduled -> cancelled)."""
-
-    def __init__(self, message: str = "invalid_status_transition"):
-        super().__init__(message)
-
-
 class WarehouseError(Exception):
-    """The SQL warehouse call itself failed."""
+    """The SQL warehouse call itself failed (connection, timeout, bad SQL)."""
 
 
 # =============================================================================
-# Centralized half-open-interval formula
+# Centralized half-open-interval formula — the single source of truth.
+# Kept as plain, dependency-free Python so it is directly unit-testable
+# (see backend/tests/test_overlap_logic.py) without a live warehouse. The SQL
+# WHERE clauses in this file must stay logically identical to these two
+# predicates; do not re-derive the overlap logic anywhere else.
 # =============================================================================
 def _instant_occupied(start_ts: datetime, end_ts: datetime, at: datetime) -> bool:
-    """True if [start_ts, end_ts) contains `at`."""
+    """True if the half-open interval [start_ts, end_ts) contains `at`.
+    The end instant itself is never occupied — see data-contracts.md's Time,
+    Date, and Status Semantics."""
     return start_ts <= at < end_ts
 
 
 def _ranges_overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
-    """True if [a_start, a_end) and [b_start, b_end) overlap."""
+    """True if [a_start, a_end) and [b_start, b_end) overlap:
+    a_start < b_end AND b_start < a_end. Touching intervals (one ends exactly
+    where the other starts) do NOT overlap."""
     return a_start < b_end and b_start < a_end
 
 
+# SQL mirrors of the two predicates above, used inside WHERE clauses. Callers
+# must bind params named exactly `at` (instant check) or `start_ts`/`end_ts`
+# (the candidate range, for the overlap check) to match these fragments.
 _SQL_INSTANT_OCCUPIED = "b.start_ts <= :at AND :at < b.end_ts"
 _SQL_RANGES_OVERLAP = "b.start_ts < :end_ts AND :start_ts < b.end_ts"
 _ONE_HOUR = timedelta(hours=1)
@@ -82,7 +98,7 @@ def _connection() -> Iterator[Any]:
             http_path=f"/sql/1.0/warehouses/{settings.sql_warehouse_id}",
             access_token=settings.databricks_token,
         )
-    except Exception as exc:
+    except Exception as exc:  # connection setup failure
         logger.error("Failed to open SQL warehouse connection: %s", exc)
         raise WarehouseError(str(exc)) from exc
     try:
@@ -106,7 +122,7 @@ def _query(sql: str, params: dict[str, Any] | None = None) -> list[dict[str, Any
 
 
 def _execute(sql: str, params: dict[str, Any] | None = None) -> None:
-    """Run an INSERT/UPDATE statement."""
+    """Run an INSERT/UPDATE with no result rows expected."""
     try:
         with _connection() as conn, conn.cursor() as cursor:
             cursor.execute(sql, params or {})
@@ -118,7 +134,11 @@ def _execute(sql: str, params: dict[str, Any] | None = None) -> None:
 
 
 def _next_id(table: str, id_column: str, prefix: str, width: int) -> str:
-    """Generate the next sequential ID."""
+    """Generate the next sequential ID (e.g. evt_004) by taking the current max
+    numeric suffix + 1. Simplification appropriate for a single-writer hackathon
+    demo (Delta/Unity Catalog has no native auto-increment) — see
+    context/code-standards.md's Simplicity principle. Not safe under concurrent
+    writers, which this product does not need to support."""
     rows = _query(
         f"SELECT MAX(CAST(SUBSTRING({id_column}, {len(prefix) + 1}) AS INT)) AS max_n "
         f"FROM {SCHEMA}.{table}"
@@ -131,7 +151,8 @@ def _next_id(table: str, id_column: str, prefix: str, width: int) -> str:
 # Reads: rooms / availability
 # =============================================================================
 def get_free_rooms(room_type: str | None, at: datetime) -> list[dict[str, Any]]:
-    """Rooms with no CONFIRMED booking occupying `at`."""
+    """Rooms with no CONFIRMED booking (belonging to a non-cancelled event)
+    occupying `at`. Mirrors room_is_free() exactly — see module docstring."""
     sql = f"""
         SELECT r.room_id, r.name, r.type
         FROM {SCHEMA}.rooms r
@@ -156,6 +177,7 @@ def room_exists(room_id: str) -> bool:
 
 
 def resolve_room_id(identifier: str) -> str | None:
+    """Resolves a room by room_id or case-insensitive name (e.g. 'room_005' or 'Lab 204')."""
     if not identifier:
         return None
     rows = _query(
@@ -169,6 +191,9 @@ def resolve_room_id(identifier: str) -> str | None:
 # Reads: teacher availability
 # =============================================================================
 def is_teacher_free(teacher_name: str, at: datetime) -> bool | None:
+    """True/False, or None if the teacher has zero timetable rows at all
+    (data-not-found — see data-contracts.md's Read Contracts: an unknown
+    teacher must never be reported as "available")."""
     existence = _query(
         f"SELECT 1 FROM {SCHEMA}.teacher_timetable WHERE teacher_name = :name LIMIT 1",
         {"name": teacher_name},
@@ -190,95 +215,152 @@ def is_teacher_free(teacher_name: str, at: datetime) -> bool | None:
 # Reads: events
 # =============================================================================
 def get_events(
-    from_ts: datetime | None = None,
-    to_ts: datetime | None = None,
+    upcoming: bool = True,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     club_id: str | None = None,
     status: str | None = None,
     q: str | None = None,
-    upcoming: bool = True,
 ) -> list[dict[str, Any]]:
-    """List events with attendance count and flexible V2 filters."""
+    """List events with a live attendance_count, per the `GET /api/events`
+    contract shape (v2-api-contracts.md §3.1 — event_id, name, club, topic,
+    start_ts, end_ts, room, status, attendance_count).
+
+    Framing rules:
+    - An explicit `status` filter always wins — it returns exactly that status,
+      overriding the default cancelled-exclusion (matches data-contracts.md's
+      "explicit historical query" vs. "default framing" distinction).
+    - Otherwise `upcoming=true` (the default) restricts to `scheduled` events;
+      and, only when no `from`/`to` range is given, to those not yet finished
+      (`end_ts > now`) — so the Newsletter Home still shows in-progress events,
+      while Calendar (which always passes `from`/`to`) gets the whole window.
+    - `upcoming=false` with no `status` returns every event, for historical
+      questions.
+
+    `from`/`to` use the project's half-open convention: `from <= start_ts < to`.
+    `q` is a simple case-insensitive substring match over name/description.
+    An unknown `club_id` simply yields an empty list, never an error.
+    """
     clauses: list[str] = []
     params: dict[str, Any] = {}
 
-    if from_ts is not None:
-        clauses.append("e.start_ts >= :from_ts")
-        params["from_ts"] = from_ts
-    if to_ts is not None:
-        clauses.append("e.start_ts < :to_ts")
-        params["to_ts"] = to_ts
-
-    if from_ts is None and to_ts is None and upcoming:
-        clauses.append("e.status = 'scheduled' AND e.end_ts > current_timestamp()")
-
-    if club_id:
-        clauses.append("(e.club_id = :club_id OR LOWER(c.name) = LOWER(:club_id))")
-        params["club_id"] = club_id
-
-    if status:
+    if status is not None:
         clauses.append("e.status = :status")
         params["status"] = status
+    elif upcoming:
+        clauses.append("e.status = 'scheduled'")
+        if date_from is None and date_to is None:
+            clauses.append("e.end_ts > current_timestamp()")
 
+    if date_from is not None:
+        clauses.append("e.start_ts >= :date_from")
+        params["date_from"] = date_from
+    if date_to is not None:
+        clauses.append("e.start_ts < :date_to")
+        params["date_to"] = date_to
+    if club_id is not None:
+        clauses.append("e.club_id = :club_id")
+        params["club_id"] = club_id
     if q:
-        clauses.append("(LOWER(e.name) LIKE :q OR LOWER(e.topic) LIKE :q OR LOWER(e.description) LIKE :q)")
-        params["q"] = f"%{q.strip().lower()}%"
+        clauses.append("(lower(e.name) LIKE :q OR lower(coalesce(e.description, '')) LIKE :q)")
+        params["q"] = f"%{q.lower()}%"
 
-    where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
-
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     sql = f"""
         SELECT
             e.event_id,
             e.name,
             c.name AS club,
+            e.topic,
             e.start_ts,
             e.end_ts,
             r.name AS room,
-            e.topic,
             e.status,
             (SELECT COUNT(*) FROM {SCHEMA}.event_attendance a
              WHERE a.event_id = e.event_id) AS attendance_count
         FROM {SCHEMA}.events e
         JOIN {SCHEMA}.clubs c ON c.club_id = e.club_id
         LEFT JOIN {SCHEMA}.rooms r ON r.room_id = e.room_id
-        {where_sql}
-        ORDER BY e.start_ts ASC
+        {where}
+        ORDER BY e.start_ts
     """
     return _query(sql, params)
 
 
-def get_event_detail(event_id: str) -> dict[str, Any]:
-    """Get single event detail including description and attendance."""
-    sql = f"""
+def get_event_detail(event_id: str) -> dict[str, Any] | None:
+    """Full single-event record for `GET /api/events/{event_id}`
+    (v2-api-contracts.md §3.2). Returns None if the event does not exist.
+    `room`/`room_id` are null when the event has no confirmed booking, since
+    `events.room_id` is kept in sync with the confirmed booking (or nulled)."""
+    rows = _query(
+        f"""
         SELECT
             e.event_id,
             e.name,
             c.name AS club,
-            e.start_ts,
-            e.end_ts,
-            e.room_id,
-            r.name AS room,
+            e.club_id,
             e.topic,
             e.description,
+            r.name AS room,
+            e.room_id,
+            e.start_ts,
+            e.end_ts,
             e.status,
             (SELECT COUNT(*) FROM {SCHEMA}.event_attendance a
-             WHERE a.event_id = e.event_id) AS attendance_count
+             WHERE a.event_id = e.event_id) AS attendance_count,
+            e.created_at
         FROM {SCHEMA}.events e
         JOIN {SCHEMA}.clubs c ON c.club_id = e.club_id
         LEFT JOIN {SCHEMA}.rooms r ON r.room_id = e.room_id
         WHERE e.event_id = :event_id
-    """
-    rows = _query(sql, {"event_id": event_id})
+        """,
+        {"event_id": event_id},
+    )
+    return rows[0] if rows else None
+
+
+def cancel_event(event_id: str) -> dict[str, Any]:
+    """Perform the `scheduled → cancelled` transition for `PATCH
+    /api/events/{event_id}` (v2-api-contracts.md §8.2). Per data-contracts.md's
+    Business Rules this cascades: the event's confirmed `room_booking` (if any)
+    is cancelled in the same operation and `events.room_id` is nulled, so every
+    availability check immediately treats the room as free.
+
+    Raises NotFoundError if the event does not exist, or
+    InvalidStatusTransitionError if it is not currently `scheduled`
+    (`cancelled` is terminal). Databricks/Delta has no multi-statement
+    transaction; the two updates commit independently, an accepted
+    simplification for the single-demo-writer model (same as create_booking)."""
+    rows = _query(
+        f"SELECT status FROM {SCHEMA}.events WHERE event_id = :event_id",
+        {"event_id": event_id},
+    )
     if not rows:
         raise NotFoundError("event_not_found")
-    return rows[0]
+    if rows[0]["status"] != "scheduled":
+        raise InvalidStatusTransitionError()
+
+    _execute(
+        f"UPDATE {SCHEMA}.events SET status = 'cancelled', room_id = NULL WHERE event_id = :event_id",
+        {"event_id": event_id},
+    )
+    _execute(
+        f"""UPDATE {SCHEMA}.room_bookings SET status = 'cancelled'
+            WHERE event_id = :event_id AND status = 'confirmed'""",
+        {"event_id": event_id},
+    )
+    return {"event_id": event_id, "status": "cancelled"}
 
 
 def event_exists(event_id: str) -> bool:
-    rows = _query(f"SELECT 1 FROM {SCHEMA}.events WHERE event_id = :event_id", {"event_id": event_id})
+    rows = _query(
+        f"SELECT 1 FROM {SCHEMA}.events WHERE event_id = :event_id", {"event_id": event_id}
+    )
     return len(rows) > 0
 
 
 def resolve_event_id(identifier: str) -> str | None:
+    """Resolves an event by event_id or case-insensitive name (e.g. 'evt_001' or 'AI Workshop')."""
     if not identifier:
         return None
     rows = _query(
@@ -289,6 +371,8 @@ def resolve_event_id(identifier: str) -> str | None:
 
 
 def get_club_by_name(name: str) -> dict[str, Any] | None:
+    """Case-insensitive exact match, per data-contracts.md's clubs.name
+    uniqueness invariant."""
     rows = _query(
         f"SELECT club_id, name, active FROM {SCHEMA}.clubs WHERE LOWER(name) = LOWER(:name)",
         {"name": name},
@@ -297,36 +381,15 @@ def get_club_by_name(name: str) -> dict[str, Any] | None:
 
 
 # =============================================================================
-# Writes: cancellation
-# =============================================================================
-def cancel_event(event_id: str) -> dict[str, Any]:
-    """Cancel a scheduled event and release its confirmed room booking."""
-    resolved = resolve_event_id(event_id)
-    if not resolved:
-        raise NotFoundError("event_not_found")
-    event_id = resolved
-
-    event = get_event_detail(event_id)
-    if event["status"] != "scheduled":
-        raise InvalidStatusTransitionError("invalid_status_transition")
-
-    _execute(
-        f"UPDATE {SCHEMA}.events SET status = 'cancelled', room_id = NULL WHERE event_id = :event_id",
-        {"event_id": event_id},
-    )
-    _execute(
-        f"UPDATE {SCHEMA}.room_bookings SET status = 'cancelled' WHERE event_id = :event_id AND status = 'confirmed'",
-        {"event_id": event_id},
-    )
-    return {"event_id": event_id, "status": "cancelled"}
-
-
-# =============================================================================
 # Writes: booking a room
 # =============================================================================
 def _confirmed_conflict(
     room_id: str, start_ts: datetime, end_ts: datetime, exclude_event_id: str | None = None
 ) -> dict[str, Any] | None:
+    """The first confirmed, non-cancelled-event booking that overlaps the
+    given room/window, or None. A booking belonging to `exclude_event_id` is
+    ignored (used when re-booking the same event, which supersedes its own
+    prior booking rather than conflicting with itself)."""
     sql = f"""
         SELECT b.booking_id, b.room_id, b.event_id, b.start_ts, b.end_ts
         FROM {SCHEMA}.room_bookings b
@@ -353,6 +416,17 @@ def _confirmed_conflict(
 def create_booking(
     room_id: str, event_id: str, start_ts: datetime, end_ts: datetime
 ) -> dict[str, Any]:
+    """Per data-contracts.md's Write Contracts (Book a room): validates the
+    room/event exist, rejects an overlapping confirmed booking with the
+    conflicting booking's details, otherwise cancels the event's prior
+    confirmed booking (if any) and inserts the new one, keeping
+    events.room_id in sync.
+
+    Databricks/Delta has no cross-statement transaction to wrap this in — each
+    statement commits independently. This mirrors how the write is specified
+    (supersede-then-insert) and is an accepted simplification for a
+    single-demo-writer hackathon build, not a production concurrency
+    guarantee."""
     resolved_room = resolve_room_id(room_id)
     if not resolved_room:
         raise NotFoundError("room_not_found")
@@ -412,6 +486,11 @@ def create_event(
     description: str | None = None,
     room_id: str | None = None,
 ) -> dict[str, Any]:
+    """Per data-contracts.md's Write Contracts (Create event). `club_name` is
+    resolved case-insensitively against clubs.name; `room_id` (if supplied) is
+    validated and immediately booked via the same supersede-then-insert path,
+    rejecting before inserting the event if a conflict exists. If `end_ts` is
+    omitted, defaults to `start_ts + 1 hour`."""
     club = get_club_by_name(club_name)
     if not club:
         raise NotFoundError("club_not_found")
@@ -471,6 +550,12 @@ def create_event(
     }
 
 
+def _default_duration():
+    from datetime import timedelta
+
+    return timedelta(hours=1)
+
+
 # =============================================================================
 # Writes: attendance ingestion
 # =============================================================================
@@ -480,6 +565,12 @@ def insert_attendance(
     registrant_email: str,
     registered_at: datetime,
 ) -> str:
+    """Per data-contracts.md's Write Contracts (Record attendance). Rejects an
+    unknown event_id regardless of that event's status. Resolves student_id by
+    exact case-insensitive email match; leaves it NULL for an unmatched
+    registrant (a valid, first-class outcome, not an error). Append-only, no
+    de-duplication — repeat registrations are recorded as separate rows by
+    design."""
     if not event_exists(event_id):
         raise NotFoundError("unknown_event")
 
@@ -510,6 +601,7 @@ def insert_attendance(
 # Reads: internships
 # =============================================================================
 def get_internships(open_only: bool = True) -> list[dict[str, Any]]:
+    """Returns internship opportunities from Delta Lake."""
     where = "WHERE status = 'open'" if open_only else ""
     sql = f"""
         SELECT
@@ -530,302 +622,311 @@ def get_internships(open_only: bool = True) -> list[dict[str, Any]]:
 
 
 # =============================================================================
-# Reads: Campus Pulse
+# Reads: Campus Pulse (v2-api-contracts.md §4.1)
 # =============================================================================
-def get_campus_pulse(at: datetime | None = None) -> dict[str, Any]:
-    """Single composite read for live Campus Pulse."""
-    now = at or datetime.now()
+# SQL mirror of _instant_occupied for a room subquery aliased `b` (see the
+# module-level _SQL_INSTANT_OCCUPIED — same predicate, kept local so the
+# NOT EXISTS / EXISTS forms below read clearly).
+_ROOM_OCCUPIED_AT = (
+    "EXISTS (SELECT 1 FROM {schema}.room_bookings b "
+    "JOIN {schema}.events e2 ON e2.event_id = b.event_id "
+    "WHERE b.room_id = r.room_id AND b.status = 'confirmed' "
+    "AND e2.status != 'cancelled' AND b.start_ts <= :at AND :at < b.end_ts)"
+)
 
-    # 1. Events happening now
+
+def get_campus_pulse(at: datetime) -> dict[str, Any]:
+    """Compose the "what's true on campus right now" snapshot in one consistent
+    `at` instant. Every field is a direct aggregate over existing governed data
+    using the same half-open-interval rule as room availability — no new metric
+    is introduced (v2-api-contracts.md §4.1). If any underlying query fails the
+    whole call raises WarehouseError; the router returns 502 with no partial
+    payload."""
+    occupied = _ROOM_OCCUPIED_AT.format(schema=SCHEMA)
+
     events_now = _query(
         f"""
-        SELECT e.event_id, e.name, c.name AS club, r.name AS room, e.start_ts, e.end_ts
+        SELECT e.event_id, e.name, c.name AS club, r.name AS room, e.end_ts
         FROM {SCHEMA}.events e
         JOIN {SCHEMA}.clubs c ON c.club_id = e.club_id
         LEFT JOIN {SCHEMA}.rooms r ON r.room_id = e.room_id
-        WHERE e.status != 'cancelled' AND e.start_ts <= :now AND :now < e.end_ts
-        ORDER BY e.start_ts ASC
+        WHERE e.status = 'scheduled' AND e.start_ts <= :at AND :at < e.end_ts
+        ORDER BY e.end_ts
         """,
-        {"now": now},
+        {"at": at},
     )
-
-    # 2. Upcoming events
     events_upcoming = _query(
         f"""
-        SELECT e.event_id, e.name, c.name AS club, r.name AS room, e.start_ts, e.end_ts
+        SELECT e.event_id, e.name, c.name AS club, e.start_ts
         FROM {SCHEMA}.events e
         JOIN {SCHEMA}.clubs c ON c.club_id = e.club_id
-        LEFT JOIN {SCHEMA}.rooms r ON r.room_id = e.room_id
-        WHERE e.status = 'scheduled' AND e.start_ts >= :now
-        ORDER BY e.start_ts ASC
+        WHERE e.status = 'scheduled' AND e.start_ts > :at
+        ORDER BY e.start_ts
         LIMIT 5
         """,
-        {"now": now},
+        {"at": at},
     )
-
-    # 3. Room counts
-    free_rooms = get_free_rooms(None, now)
-    total_rooms_rows = _query(f"SELECT COUNT(*) AS total FROM {SCHEMA}.rooms")
-    total_rooms = total_rooms_rows[0]["total"] if total_rooms_rows else 0
-
-    # 4. Registrations today
-    today_start = datetime(now.year, now.month, now.day)
-    tomorrow_start = today_start + timedelta(days=1)
-    reg_rows = _query(
-        f"""
-        SELECT COUNT(*) AS cnt FROM {SCHEMA}.event_attendance
-        WHERE registered_at >= :t_start AND registered_at < :t_end
-        """,
-        {"t_start": today_start, "t_end": tomorrow_start},
-    )
-    registrations_today = reg_rows[0]["cnt"] if reg_rows else 0
-
-    next_major = events_upcoming[0] if events_upcoming else None
-
-    return {
-        "events_now": events_now,
-        "events_upcoming": events_upcoming,
-        "rooms_available_count": len(free_rooms),
-        "rooms_total_count": total_rooms,
-        "registrations_today": registrations_today,
-        "next_major_event": next_major,
-        "timestamp": now,
-    }
-
-
-# =============================================================================
-# Reads: Analytics
-# =============================================================================
-def _range_clauses(from_ts: datetime | None, to_ts: datetime | None, col: str = "start_ts") -> tuple[list[str], dict[str, Any]]:
-    clauses: list[str] = []
-    params: dict[str, Any] = {}
-    if from_ts:
-        clauses.append(f"{col} >= :from_ts")
-        params["from_ts"] = from_ts
-    if to_ts:
-        clauses.append(f"{col} < :to_ts")
-        params["to_ts"] = to_ts
-    return clauses, params
-
-
-def get_analytics_overview(from_ts: datetime | None = None, to_ts: datetime | None = None) -> dict[str, Any]:
-    range_dict = {
-        "from": from_ts.isoformat() if from_ts else None,
-        "to": to_ts.isoformat() if to_ts else None,
-    }
-    clauses, params = _range_clauses(from_ts, to_ts, "e.start_ts")
-    if not from_ts and not to_ts:
-        clauses.append("e.status != 'cancelled'")
-    where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
-
-    ev_stats = _query(
+    room_counts = _query(
         f"""
         SELECT
-            COUNT(*) AS total_events,
-            SUM(CASE WHEN e.status = 'scheduled' AND e.start_ts >= current_timestamp() THEN 1 ELSE 0 END) AS upcoming_events
-        FROM {SCHEMA}.events e
-        {where_sql}
+          (SELECT COUNT(*) FROM {SCHEMA}.rooms) AS total,
+          (SELECT COUNT(*) FROM {SCHEMA}.rooms r WHERE NOT {occupied}) AS available
         """,
-        params,
+        {"at": at},
+    )
+    registrations = _query(
+        f"""
+        SELECT COUNT(*) AS n FROM {SCHEMA}.event_attendance
+        WHERE CAST(registered_at AS DATE) = CAST(:at AS DATE)
+        """,
+        {"at": at},
     )
 
-    reg_clauses, reg_params = _range_clauses(from_ts, to_ts, "a.registered_at")
-    reg_where = ("WHERE " + " AND ".join(reg_clauses)) if reg_clauses else ""
-    reg_stats = _query(
-        f"SELECT COUNT(*) AS total_reg FROM {SCHEMA}.event_attendance a {reg_where}",
-        reg_params,
-    )
-
-    active_clubs = _query(f"SELECT COUNT(*) AS active_cnt FROM {SCHEMA}.clubs WHERE active = true")
-    total_rooms = _query(f"SELECT COUNT(*) AS total_cnt FROM {SCHEMA}.rooms")
-
-    now = datetime.now()
-    free_now = len(get_free_rooms(None, now))
-    total_r = total_rooms[0]["total_cnt"] if total_rooms else 0
-    booked_now = max(0, total_r - free_now)
-
-    tot_ev = ev_stats[0]["total_events"] if ev_stats else 0
-    tot_reg = reg_stats[0]["total_reg"] if reg_stats else 0
-    avg_att = round(tot_reg / tot_ev, 1) if tot_ev > 0 else 0.0
-
+    total = room_counts[0]["total"] if room_counts else 0
+    available = room_counts[0]["available"] if room_counts else 0
+    next_major = None
+    if events_upcoming:
+        first = events_upcoming[0]
+        next_major = {
+            "event_id": first["event_id"],
+            "name": first["name"],
+            "start_ts": first["start_ts"],
+        }
     return {
-        "range": range_dict,
-        "total_events": tot_ev,
-        "upcoming_events": ev_stats[0]["upcoming_events"] if ev_stats else 0,
-        "total_registrations": tot_reg,
-        "average_attendance_per_event": avg_att,
-        "active_clubs": active_clubs[0]["active_cnt"] if active_clubs else 0,
-        "rooms_booked_now": booked_now,
-        "rooms_total": total_r,
+        "at": at,
+        "events_now": events_now,
+        "events_upcoming": events_upcoming,
+        "rooms_available_count": available,
+        "rooms_total_count": total,
+        "registrations_today": registrations[0]["n"] if registrations else 0,
+        "next_major_event": next_major,
+    }
+
+
+# =============================================================================
+# Reads: Analytics (v2-api-contracts.md §5) — council-only, direct aggregates
+# =============================================================================
+def _range_clauses(column: str, date_from: datetime | None, date_to: datetime | None,
+                   params: dict[str, Any]) -> list[str]:
+    """Half-open [from, to) window clauses for `column`, binding into `params`."""
+    clauses: list[str] = []
+    if date_from is not None:
+        clauses.append(f"{column} >= :date_from")
+        params["date_from"] = date_from
+    if date_to is not None:
+        clauses.append(f"{column} < :date_to")
+        params["date_to"] = date_to
+    return clauses
+
+
+def get_analytics_overview(
+    date_from: datetime | None, date_to: datetime | None
+) -> dict[str, Any]:
+    explicit_range = date_from is not None or date_to is not None
+
+    ev_params: dict[str, Any] = {}
+    ev_clauses = _range_clauses("e.start_ts", date_from, date_to, ev_params)
+    # Default framing excludes cancelled; an explicit date range is treated as a
+    # historical query and counts every status (data-contracts.md Read Contracts).
+    if not explicit_range:
+        ev_clauses.insert(0, "e.status != 'cancelled'")
+    ev_where = " AND ".join(ev_clauses) if ev_clauses else "TRUE"
+    total_events = _query(
+        f"SELECT COUNT(*) AS n FROM {SCHEMA}.events e WHERE {ev_where}", ev_params
+    )[0]["n"]
+
+    upcoming_events = _query(
+        f"""SELECT COUNT(*) AS n FROM {SCHEMA}.events
+            WHERE status = 'scheduled' AND start_ts > current_timestamp()"""
+    )[0]["n"]
+
+    att_params: dict[str, Any] = {}
+    att_clauses = _range_clauses("registered_at", date_from, date_to, att_params)
+    att_where = " AND ".join(att_clauses) if att_clauses else "TRUE"
+    total_registrations = _query(
+        f"SELECT COUNT(*) AS n FROM {SCHEMA}.event_attendance WHERE {att_where}", att_params
+    )[0]["n"]
+
+    active_clubs = _query(
+        f"SELECT COUNT(*) AS n FROM {SCHEMA}.clubs WHERE active = true"
+    )[0]["n"]
+
+    rooms = _query(
+        f"""
+        SELECT
+          (SELECT COUNT(*) FROM {SCHEMA}.rooms) AS total,
+          (SELECT COUNT(*) FROM {SCHEMA}.rooms r WHERE EXISTS (
+             SELECT 1 FROM {SCHEMA}.room_bookings b
+             JOIN {SCHEMA}.events e ON e.event_id = b.event_id
+             WHERE b.room_id = r.room_id AND b.status = 'confirmed'
+               AND e.status != 'cancelled'
+               AND b.start_ts <= current_timestamp() AND current_timestamp() < b.end_ts
+          )) AS booked
+        """
+    )[0]
+
+    average = round(total_registrations / total_events, 1) if total_events else 0.0
+    return {
+        "range": {"from": date_from, "to": date_to},
+        "total_events": total_events,
+        "upcoming_events": upcoming_events,
+        "total_registrations": total_registrations,
+        "average_attendance_per_event": average,
+        "active_clubs": active_clubs,
+        "rooms_booked_now": rooms["booked"],
+        "rooms_total": rooms["total"],
     }
 
 
 def get_analytics_events(
-    from_ts: datetime | None = None, to_ts: datetime | None = None, limit: int = 10
+    date_from: datetime | None, date_to: datetime | None, limit: int
 ) -> dict[str, Any]:
-    range_dict = {
-        "from": from_ts.isoformat() if from_ts else None,
-        "to": to_ts.isoformat() if to_ts else None,
+    limit = max(1, min(int(limit), 100))  # bounded int, safe to inline
+    params: dict[str, Any] = {}
+    clauses = _range_clauses("e.start_ts", date_from, date_to, params)
+    where = " AND ".join(clauses) if clauses else "TRUE"
+    base = f"""
+        SELECT e.event_id, e.name,
+          (SELECT COUNT(*) FROM {SCHEMA}.event_attendance a WHERE a.event_id = e.event_id)
+            AS attendance_count
+        FROM {SCHEMA}.events e
+        WHERE {where}
+    """
+    popular = _query(
+        f"SELECT t.event_id, t.name, t.attendance_count FROM ({base}) t "
+        f"WHERE t.attendance_count > 0 ORDER BY t.attendance_count DESC, t.event_id LIMIT {limit}",
+        params,
+    )
+    low = _query(
+        f"SELECT t.event_id, t.name, t.attendance_count FROM ({base}) t "
+        f"WHERE t.attendance_count > 0 ORDER BY t.attendance_count ASC, t.event_id LIMIT {limit}",
+        params,
+    )
+    zero = _query(
+        f"SELECT t.event_id, t.name, t.attendance_count FROM ({base}) t "
+        f"WHERE t.attendance_count = 0 ORDER BY t.event_id",
+        params,
+    )
+    return {
+        "range": {"from": date_from, "to": date_to},
+        "popular_events": popular,
+        "low_attendance_events": low,
+        "zero_attendance_events": zero,
     }
-    clauses, params = _range_clauses(from_ts, to_ts, "e.start_ts")
-    clauses.append("e.status != 'cancelled'")
-    where_sql = "WHERE " + " AND ".join(clauses)
 
+
+def get_analytics_rooms(
+    date_from: datetime | None, date_to: datetime | None
+) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    booking_filter = " AND ".join(
+        ["b.status = 'confirmed'"] + _range_clauses("b.start_ts", date_from, date_to, params)
+    )
+    utilization = _query(
+        f"""
+        SELECT r.room_id, r.name, r.type,
+          COUNT(b.booking_id) AS confirmed_bookings,
+          COALESCE(
+            SUM((unix_timestamp(b.end_ts) - unix_timestamp(b.start_ts)) / 3600.0), 0
+          ) AS total_booked_hours
+        FROM {SCHEMA}.rooms r
+        LEFT JOIN {SCHEMA}.room_bookings b ON b.room_id = r.room_id AND {booking_filter}
+        GROUP BY r.room_id, r.name, r.type
+        ORDER BY confirmed_bookings DESC, r.room_id
+        """,
+        params,
+    )
+    peak = _query(
+        f"""
+        SELECT hour(b.start_ts) AS hour_of_day, COUNT(*) AS booking_count
+        FROM {SCHEMA}.room_bookings b
+        WHERE {booking_filter}
+        GROUP BY hour(b.start_ts)
+        ORDER BY hour_of_day
+        """,
+        params,
+    )
+    for row in utilization:
+        row["total_booked_hours"] = float(row["total_booked_hours"] or 0)
+    return {
+        "range": {"from": date_from, "to": date_to},
+        "room_utilization": utilization,
+        "peak_booking_periods": peak,
+    }
+
+
+def get_analytics_clubs(
+    date_from: datetime | None, date_to: datetime | None
+) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    ev_clauses = _range_clauses("e.start_ts", date_from, date_to, params)
+    ev_filter = " AND ".join(ev_clauses) if ev_clauses else "TRUE"
     rows = _query(
         f"""
-        SELECT
-            e.event_id,
-            e.name,
-            (SELECT COUNT(*) FROM {SCHEMA}.event_attendance a WHERE a.event_id = e.event_id) AS attendance_count
-        FROM {SCHEMA}.events e
-        {where_sql}
-        ORDER BY attendance_count DESC, e.start_ts ASC
-        """,
-        params,
-    )
-
-    popular = rows[:limit]
-    zero_att = [r for r in rows if r["attendance_count"] == 0]
-    low_att = [r for r in rows if 0 < r["attendance_count"] <= 5]
-
-    return {
-        "range": range_dict,
-        "popular_events": popular,
-        "low_attendance_events": low_att,
-        "zero_attendance_events": zero_att,
-    }
-
-
-def get_analytics_rooms(from_ts: datetime | None = None, to_ts: datetime | None = None) -> dict[str, Any]:
-    range_dict = {
-        "from": from_ts.isoformat() if from_ts else None,
-        "to": to_ts.isoformat() if to_ts else None,
-    }
-    clauses, params = _range_clauses(from_ts, to_ts, "b.start_ts")
-    clauses.append("b.status = 'confirmed'")
-    where_sql = "WHERE " + " AND ".join(clauses)
-
-    room_util = _query(
-        f"""
-        SELECT
-            r.room_id,
-            r.name,
-            r.type,
-            COUNT(b.booking_id) AS confirmed_bookings,
-            COALESCE(SUM(CAST(unix_timestamp(b.end_ts) - unix_timestamp(b.start_ts) AS DOUBLE) / 3600.0), 0.0) AS total_booked_hours
-        FROM {SCHEMA}.rooms r
-        LEFT JOIN (
-            SELECT b.booking_id, b.room_id, b.start_ts, b.end_ts
-            FROM {SCHEMA}.room_bookings b
-            JOIN {SCHEMA}.events e ON e.event_id = b.event_id
-            {where_sql} AND e.status != 'cancelled'
-        ) b ON b.room_id = r.room_id
-        GROUP BY r.room_id, r.name, r.type
-        ORDER BY total_booked_hours DESC
-        """,
-        params,
-    )
-
-    peak_periods = _query(
-        f"""
-        SELECT
-            hour(b.start_ts) AS hour_of_day,
-            COUNT(*) AS booking_count
-        FROM {SCHEMA}.room_bookings b
-        JOIN {SCHEMA}.events e ON e.event_id = b.event_id
-        {where_sql} AND e.status != 'cancelled'
-        GROUP BY hour(b.start_ts)
-        ORDER BY booking_count DESC
-        LIMIT 6
-        """,
-        params,
-    )
-
-    return {
-        "range": range_dict,
-        "room_utilization": room_util,
-        "peak_booking_periods": peak_periods,
-    }
-
-
-def get_analytics_clubs(from_ts: datetime | None = None, to_ts: datetime | None = None) -> dict[str, Any]:
-    range_dict = {
-        "from": from_ts.isoformat() if from_ts else None,
-        "to": to_ts.isoformat() if to_ts else None,
-    }
-    clauses, params = _range_clauses(from_ts, to_ts, "e.start_ts")
-    where_sql = ("WHERE " + " AND ".join(clauses)) if clauses else ""
-
-    club_stats = _query(
-        f"""
-        SELECT
-            c.club_id,
-            c.name,
-            c.active,
-            COUNT(e.event_id) AS event_count,
-            COALESCE(SUM(ev_att.attendance_count), 0) AS total_registrations
+        SELECT c.club_id, c.name, c.active,
+          COUNT(DISTINCT e.event_id) AS event_count,
+          COUNT(a.attendance_id) AS total_registrations
         FROM {SCHEMA}.clubs c
-        LEFT JOIN (
-            SELECT
-                e.event_id,
-                e.club_id,
-                (SELECT COUNT(*) FROM {SCHEMA}.event_attendance a WHERE a.event_id = e.event_id) AS attendance_count
-            FROM {SCHEMA}.events e
-            {where_sql}
-        ) e ON e.club_id = c.club_id
+        LEFT JOIN {SCHEMA}.events e ON e.club_id = c.club_id AND {ev_filter}
+        LEFT JOIN {SCHEMA}.event_attendance a ON a.event_id = e.event_id
         GROUP BY c.club_id, c.name, c.active
-        ORDER BY total_registrations DESC, event_count DESC
+        ORDER BY event_count DESC, c.club_id
         """,
         params,
     )
-
-    return {
-        "range": range_dict,
-        "club_activity": club_stats,
-    }
+    return {"range": {"from": date_from, "to": date_to}, "club_activity": rows}
 
 
 # =============================================================================
-# Reads: Activity
+# Reads: Activity feed (v2-api-contracts.md §6.1) — derived, no new table
 # =============================================================================
 def get_activity(limit: int = 20) -> list[dict[str, Any]]:
-    """Chronological audit feed combining events and room bookings."""
-    events_created = _query(
-        f"""
-        SELECT
-            'event_created' AS type,
-            e.created_at AS at,
-            e.event_id,
-            e.name,
-            CAST(NULL AS STRING) AS booking_id,
-            CAST(NULL AS STRING) AS room,
-            CAST(NULL AS STRING) AS event_name
-        FROM {SCHEMA}.events e
-        ORDER BY e.created_at DESC
-        LIMIT :limit
-        """,
-        {"limit": limit},
-    )
+    """Merge recent `events.created_at` and `room_bookings.created_at` into one
+    reverse-chronological feed. No cancellation events / user attribution —
+    those need schema additions flagged as NEW DATA DEPENDENCY in §6.1."""
+    limit = max(1, min(int(limit), 50))  # bounded int, safe to inline
 
-    bookings_created = _query(
+    events = _query(
         f"""
-        SELECT
-            'room_booked' AS type,
-            b.created_at AS at,
-            b.event_id,
-            CAST(NULL AS STRING) AS name,
-            b.booking_id,
-            r.name AS room,
-            e.name AS event_name
+        SELECT e.event_id, e.name, e.created_at
+        FROM {SCHEMA}.events e
+        WHERE e.created_at IS NOT NULL
+        ORDER BY e.created_at DESC
+        LIMIT {limit}
+        """
+    )
+    bookings = _query(
+        f"""
+        SELECT b.booking_id, b.event_id, b.created_at, r.name AS room, e.name AS event_name
         FROM {SCHEMA}.room_bookings b
         JOIN {SCHEMA}.rooms r ON r.room_id = b.room_id
         JOIN {SCHEMA}.events e ON e.event_id = b.event_id
+        WHERE b.created_at IS NOT NULL
         ORDER BY b.created_at DESC
-        LIMIT :limit
-        """,
-        {"limit": limit},
+        LIMIT {limit}
+        """
     )
 
-    combined = events_created + bookings_created
-    combined.sort(key=lambda x: x["at"] or datetime.min, reverse=True)
-    return combined[:limit]
+    items: list[dict[str, Any]] = [
+        {
+            "type": "event_created",
+            "at": row["created_at"],
+            "event_id": row["event_id"],
+            "name": row["name"],
+        }
+        for row in events
+    ]
+    items += [
+        {
+            "type": "room_booked",
+            "at": row["created_at"],
+            "booking_id": row["booking_id"],
+            "room": row["room"],
+            "event_id": row["event_id"],
+            "event_name": row["event_name"],
+        }
+        for row in bookings
+    ]
+    items.sort(key=lambda it: it["at"], reverse=True)
+    return items[:limit]
+

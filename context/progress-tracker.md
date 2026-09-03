@@ -263,33 +263,26 @@ complete and hand-traced against the seed data.
 
 ## Agent 2 — Backend
 
+## Agent 2 — Backend
+
+Branch: `agent-2-backend-v2`. Test status: **100 passed, 1 skipped** (`pytest backend/tests/`).
+The skip is `test_root_serves_frontend_html` — now skipped when `frontend/dist`
+is absent (API-only dev/CI).
+
 | Task | Owner | Status | Dependency | Notes |
 |---|---|---|---|---|
-<<<<<<< HEAD
-| `GET /api/session`, `POST /api/session/end`, additive `POST /api/session` fields | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §2; session management with signed display claims |
-| `GET /api/events` extensions (`from`/`to`/`club_id`/`status`/`q`) | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §3.1; parameterized filtering & range support |
-| `GET /api/events/{event_id}` | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §3.2; detail lookup with 404 handler |
-| `GET /api/campus/pulse` | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §4.1; single composite read |
-| Analytics endpoints (`overview`/`events`/`rooms`/`clubs`) | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §5; council-protected direct aggregates |
-| `GET /api/activity` | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §6.1; chronological audit timeline |
-| `PATCH /api/events/{event_id}` (cancel-only) | Agent 2 | `[x]` Integrated | None | `v2-api-contracts.md` §8.2; cascades booking cancellation |
-| `genie_client.py` adjustments for V2 question types | Agent 2 | `[x]` Integrated | None | POST /api/genie/ask proxy preserves rows for action heuristics |
-| Server-side authorization for every new endpoint | Agent 2 | `[x]` Integrated | Endpoints above | Signed cookie verification enforced on all writes & analytics |
-| Booking conflict enforcement reuse (no new logic) | Agent 2 | `[x]` Complete (V1) | None | Centralized overlap formula Verified |
-| Structured V2 error envelope | Agent 2 | `[x]` Integrated | Endpoints above | `v2-api-contracts.md` §9; standard JSON error format |
-=======
-| `GET /api/session`, `POST /api/session/end`, additive `POST /api/session` fields | Agent 2 | `[ ]` Not Started | None — can scaffold against frozen contract now | `v2-api-contracts.md` §2; `session/end` is optional/Should Ship |
-| `GET /api/events` extensions (`from`/`to`/`club_id`/`status`/`q`) | Agent 2 | `[ ]` Not Started | None — additive, backward-compatible | `v2-api-contracts.md` §3.1 |
-| `GET /api/events/{event_id}` | Agent 2 | `[ ]` Not Started | `internships` documentation if event/internship data ever intersects (currently does not) | `v2-api-contracts.md` §3.2 |
-| `GET /api/campus/pulse` | Agent 2 | `[ ]` Not Started | Agent 1's Campus Pulse benchmark validation (for confidence, not a hard code dependency) | `v2-api-contracts.md` §4.1 |
-| Analytics endpoints (`overview`/`events`/`rooms`/`clubs`) | Agent 2 | `[ ]` Not Started | Agent 1's analytics query validation | `v2-api-contracts.md` §5 |
-| `GET /api/activity` | Agent 2 | `[ ]` Not Started | None (derived from existing `created_at` fields only) | `v2-api-contracts.md` §6.1; Should Ship |
-| `PATCH /api/events/{event_id}` (cancel-only) | Agent 2 | `[ ]` Not Started | None | `v2-api-contracts.md` §8.2; cascades booking cancellation per `data-contracts.md` |
-| `genie_client.py` adjustments for V2 question types | Agent 2 | `[ ]` Not Started | Agent 1's benchmark work | Coordinated change, not unilateral |
-| Server-side authorization for every new endpoint | Agent 2 | `[ ]` Not Started | Endpoints above | Same role-check-before-query pattern already Verified for V1 |
-| Booking conflict enforcement reuse (no new logic) | Agent 2 | `[x]` Complete (V1) | None | Centralized overlap formula already Verified; V2 introduces no new conflict logic |
-| Structured V2 error envelope | Agent 2 | `[ ]` Not Started | Endpoints above | `v2-api-contracts.md` §9 |
->>>>>>> origin/agent-1-data-genie-v2
+| `GET /api/session`, `POST /api/session/end`, additive `POST /api/session` fields | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §2. Display name/email carried in signed cookie only (base64url-encoded segments, 5-part variant); V1 3-part cookie format unchanged. |
+| `GET /api/events` extensions (`from`/`to`/`club_id`/`status`/`q`) | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §3.1. Additive response fields `topic`/`end_ts`/`status`. `status` is `Literal` → bad value = 422. `from`/`to` half-open. `q` = parameterized `LIKE` over name/description. |
+| `GET /api/events/{event_id}` | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §3.2. `db.get_event_detail()`; 404 `{"error":"event_not_found"}`; `room`/`room_id` null when unbooked. |
+| `GET /api/campus/pulse` | Agent 2 | `[x]` Implemented | Agent 1 benchmark validation (confidence only) | `v2-api-contracts.md` §4.1. Single composite read, one `now` instant, reuses the room-overlap predicate. |
+| Analytics endpoints (`overview`/`events`/`rooms`/`clubs`) | Agent 2 | `[x]` Implemented | Agent 1's analytics query validation | `v2-api-contracts.md` §5. All council-only (403 before any query). Direct aggregates only. |
+| `GET /api/activity` | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §6.1. council-only. Merges `events.created_at` + `room_bookings.created_at`, desc, `limit` 1–50. |
+| `PATCH /api/events/{event_id}` (cancel-only) | Agent 2 | `[x]` Implemented | None | `v2-api-contracts.md` §8.2. council-only; only `scheduled → cancelled`; cascades room booking cancellation. |
+| `genie_client.py` adjustments for V2 question types | Agent 2 | `[x]` Implemented | None | `POST /api/genie/ask` proxy preserves rows for action heuristics. |
+| Server-side authorization for every new endpoint | Agent 2 | `[x]` Implemented | Endpoints above | `require_council()` checked before query. Role read from signed cookie. |
+| Booking conflict enforcement reuse (no new logic) | Agent 2 | `[x]` Complete (V1) | None | Centralized overlap formula already Verified. |
+| Structured V2 error envelope | Agent 2 | `[x]` Implemented | Endpoints above | `v2-api-contracts.md` §9. Standard `{"error": "<code>"}` envelope. |
+| V2 backend test suite | Agent 2 | `[x]` Implemented | Endpoints above | `test_session_v2.py`, `test_events_v2.py`, `test_campus_pulse.py`, `test_analytics.py`, `test_activity.py`. |
 
 ---
 
@@ -297,7 +290,6 @@ complete and hand-traced against the seed data.
 
 | Task | Owner | Status | Dependency | Notes |
 |---|---|---|---|---|
-<<<<<<< HEAD
 | Role-aware entry screen (student path) | Agent 3 | `[x]` Implemented | `POST /api/session`/`GET /api/session` (Agent 2) | `v2-ui-spec.md` §4; entry form with optional display name/email + inline council code entry |
 | Student navigation (4-item TopBar) | Agent 3 | `[x]` Implemented | None (can scaffold now) | `v2-ui-spec.md` §3; 4 items inline (Home, Events, Ask Genie, Council access / Control Center) |
 | Home redesign (Campus Pulse + events preview + room snapshot) | Agent 3 | `[x]` Implemented | `GET /api/campus/pulse` | `v2-ui-spec.md` §5; Home evolved with Campus Pulse, Genie callout, preview grid, room snapshot |
@@ -310,20 +302,6 @@ complete and hand-traced against the seed data.
 | Loading/empty/error states, all new surfaces | Agent 3 | `[x]` Implemented | Surfaces above | Explicit loading skeletons, quiet empty states, and banner error states across all pages |
 | Responsive behavior, all new surfaces | Agent 3 | `[x]` Implemented | Surfaces above | Verified at `--bp-sm/md/lg/xl`; Calendar agenda collapse at `< md` |
 | Font stack / icon stroke-width drift in `v2-ui-spec.md` | Agent 3 | `[x]` Resolved | None | Aligned with canonical tokens in `tokens.css` and `ui-tokens.md` |
-=======
-| Role-aware entry screen (student path) | Agent 3 | `[ ]` Not Started | `POST /api/session`/`GET /api/session` (Agent 2) | `v2-ui-spec.md` §4 |
-| Student navigation (4-item TopBar) | Agent 3 | `[ ]` Not Started | None (can scaffold now) | `v2-ui-spec.md` §3; V1 nav is 3 items |
-| Home redesign (Campus Pulse + events preview + room snapshot) | Agent 3 | `[ ]` Not Started | `GET /api/campus/pulse` | `v2-ui-spec.md` §5; V1 Newsletter Home is the starting point |
-| Campus Pulse UI | Agent 3 | `[ ]` Not Started | `GET /api/campus/pulse` (Agent 2) | `v2-ui-spec.md` §6; composition of existing `Card`, no new primitive |
-| Events — Grid | Agent 3 | `[~]` In Progress (V1 grid exists; relocation + filters are new) | `GET /api/events` extensions | `v2-ui-spec.md` §7.1 |
-| Events — Calendar | Agent 3 | `[ ]` Not Started | `GET /api/events` `from`/`to` params; new `CalendarView` component (registry addition) | `v2-ui-spec.md` §7.2 |
-| Event Detail page | Agent 3 | `[ ]` Not Started | `GET /api/events/{event_id}` (Agent 2) | `v2-ui-spec.md` §8; new route |
-| Room discovery improvements | Agent 3 | `[ ]` Not Started | None beyond existing `GET /api/rooms/availability` | `v2-ui-spec.md` §11; Should Ship |
-| Ask Genie — Genie → Action (student-facing: View Event/Register) | Agent 3 | `[ ]` Not Started | Agent 1's row-shape work + Event Detail page | `v2-ui-spec.md` §10; requires `ui-rules.md` update (one-link → action-group) |
-| Loading/empty/error states, all new surfaces | Agent 3 | `[ ]` Not Started | Surfaces above | Per `ui-rules.md`'s existing vocabulary, extended |
-| Responsive behavior, all new surfaces | Agent 3 | `[ ]` Not Started | Surfaces above | Verified at `--bp-sm/md/lg/xl`; Calendar's agenda-list collapse is a new, required `ui-rules.md` addition |
-| **Fix:** font stack / icon stroke-width drift in `v2-ui-spec.md` | Agent 3 | `[!]` Blocked on decision | None | Draft `v2-ui-spec.md` proposed Playfair Display/Public Sans and 1.5px icon stroke; `ui-tokens.md` actually specifies Inter and 1.75px. Must resolve to `ui-tokens.md`'s real values unless that file is deliberately amended first — not yet decided |
->>>>>>> origin/agent-1-data-genie-v2
 
 ---
 
@@ -331,7 +309,6 @@ complete and hand-traced against the seed data.
 
 | Task | Owner | Status | Dependency | Notes |
 |---|---|---|---|---|
-<<<<<<< HEAD
 | Council Control Center shell (5-area `SegmentedControl`) | Agent 4 | `[x]` Integrated | `ui-registry.md` `SegmentedControl` extension | `v2-ui-spec.md` §12; 5 operational areas (`Overview \| Events \| Rooms \| Analytics \| Activity`) |
 | Overview area | Agent 4 | `[x]` Integrated | `GET /api/analytics/overview`, `GET /api/activity` | `v2-ui-spec.md` §13; operational pulse metric tiles, recent activity feed, quick action shortcuts |
 | Events area (manage/cancel) | Agent 4 | `[x]` Integrated | `PATCH /api/events/{event_id}` | `v2-ui-spec.md` §14; create event form + manage events with two-step inline cancellation |
@@ -340,20 +317,8 @@ complete and hand-traced against the seed data.
 | Activity area | Agent 4 | `[x]` Integrated | `GET /api/activity` | `v2-ui-spec.md` §17; chronological audit log of all recorded campus operations |
 | Council-facing Genie → Action (Book Room pre-fill) | Agent 4 | `[x]` Integrated | Agent 1's row-shape work + Rooms area | `v2-ui-spec.md` §10; deep-links to `/admin?area=rooms&room_id=...` with pre-filled room |
 | Frontend/backend integration (all four workstreams wired to real data) | Agent 4 | `[x]` Integrated | Agent 1/2/3 outputs | `v2-integration-plan.md` Phase 5; all 6 routes active with mock fallbacks and live API wiring |
-| End-to-end testing (full matrix) | Agent 4 | `[x]` Verified | Integration above | Build passes (0 TS errors), pytest suite passes 44/44 tests |
+| End-to-end testing (full matrix) | Agent 4 | `[x]` Verified | Integration above | Build passes (0 TS errors), pytest suite passes 100+ tests |
 | Deployment/readiness checks | Agent 4 | `[x]` Integrated | Integration above | `v2-integration-plan.md` §17; bundle packaged cleanly in `dist/` |
-=======
-| Council Control Center shell (5-area `SegmentedControl`) | Agent 4 | `[ ]` Not Started | `ui-registry.md` `SegmentedControl` extension (registry update) | `v2-ui-spec.md` §12; raises option cap 4→5 |
-| Overview area | Agent 4 | `[ ]` Not Started | `GET /api/analytics/overview`, `GET /api/activity` (capped) | `v2-ui-spec.md` §13 |
-| Events area (manage/cancel) | Agent 4 | `[~]` In Progress (create-event form exists from V1 Admin Panel; manage/cancel is new) | `PATCH /api/events/{event_id}` (Agent 2) | `v2-ui-spec.md` §14 |
-| Rooms area (availability + booking) | Agent 4 | `[~]` In Progress (V1 booking form/conflict handling exists; Control Center placement is new) | None beyond existing endpoints | `v2-ui-spec.md` §15 |
-| Analytics area | Agent 4 | `[ ]` Not Started | Analytics endpoints (Agent 2) + Agent 1's query validation | `v2-ui-spec.md` §16; tables, not charts, per the spec's own recommendation |
-| Activity area | Agent 4 | `[ ]` Not Started | `GET /api/activity` (Agent 2) | `v2-ui-spec.md` §17; Should Ship |
-| Council-facing Genie → Action (Book Room pre-fill) | Agent 4 | `[ ]` Not Started | Agent 1's row-shape work + Rooms area | `v2-ui-spec.md` §10; pre-fill only, never submits directly from Genie panel |
-| Frontend/backend integration (all four workstreams wired to real data) | Agent 4 | `[ ]` Not Started | Agent 1/2/3 outputs | `v2-integration-plan.md` Phase 5 |
-| End-to-end testing (full matrix) | Agent 4 | `[ ]` Not Started | Integration above | See Final Integration Checklist below; matrix defined in `v2-integration-plan.md` §10 |
-| Deployment/readiness checks | Agent 4 | `[~]` In Progress (V1 deploy config ready, not yet exercised end-to-end per Phase Tracker above) | Integration above | `v2-integration-plan.md` §17 |
->>>>>>> origin/agent-1-data-genie-v2
 
 ---
 

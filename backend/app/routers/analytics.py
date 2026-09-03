@@ -1,3 +1,11 @@
+"""Council Control Center analytics endpoints (v2-api-contracts.md §5).
+
+All four are council-only: a `student` (or session-less) caller gets
+`403 {"error": "forbidden"}` before any query is constructed, via
+`require_council`. Every metric is a direct aggregate over existing governed
+tables — no new table, no new derived semantic, no predictive modeling.
+"""
+
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -11,61 +19,61 @@ from app.models import (
     AnalyticsRoomsResponse,
 )
 
-router = APIRouter(prefix="/analytics")
+router = APIRouter()
 
 
-@router.get("/overview", response_model=AnalyticsOverviewResponse)
-def get_analytics_overview(
+@router.get("/analytics/overview", response_model=AnalyticsOverviewResponse)
+def analytics_overview(
     request: Request,
-    from_ts: datetime | None = Query(None, alias="from"),
-    to_ts: datetime | None = Query(None, alias="to"),
+    date_from: datetime | None = Query(default=None, alias="from"),
+    date_to: datetime | None = Query(default=None, alias="to"),
 ) -> AnalyticsOverviewResponse:
     require_council(request)
     try:
-        data = db.get_analytics_overview(from_ts=from_ts, to_ts=to_ts)
+        data = db.get_analytics_overview(date_from, date_to)
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"error": str(exc)})
-    return AnalyticsOverviewResponse(**data)
+    return AnalyticsOverviewResponse.model_validate(data)
 
 
-@router.get("/events", response_model=AnalyticsEventsResponse)
-def get_analytics_events(
+@router.get("/analytics/events", response_model=AnalyticsEventsResponse)
+def analytics_events(
     request: Request,
-    from_ts: datetime | None = Query(None, alias="from"),
-    to_ts: datetime | None = Query(None, alias="to"),
-    limit: int = Query(10, ge=1, le=50),
+    date_from: datetime | None = Query(default=None, alias="from"),
+    date_to: datetime | None = Query(default=None, alias="to"),
+    limit: int = Query(default=10, ge=1, le=100),
 ) -> AnalyticsEventsResponse:
     require_council(request)
     try:
-        data = db.get_analytics_events(from_ts=from_ts, to_ts=to_ts, limit=limit)
+        data = db.get_analytics_events(date_from, date_to, limit)
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"error": str(exc)})
-    return AnalyticsEventsResponse(**data)
+    return AnalyticsEventsResponse.model_validate(data)
 
 
-@router.get("/rooms", response_model=AnalyticsRoomsResponse)
-def get_analytics_rooms(
+@router.get("/analytics/rooms", response_model=AnalyticsRoomsResponse)
+def analytics_rooms(
     request: Request,
-    from_ts: datetime | None = Query(None, alias="from"),
-    to_ts: datetime | None = Query(None, alias="to"),
+    date_from: datetime | None = Query(default=None, alias="from"),
+    date_to: datetime | None = Query(default=None, alias="to"),
 ) -> AnalyticsRoomsResponse:
     require_council(request)
     try:
-        data = db.get_analytics_rooms(from_ts=from_ts, to_ts=to_ts)
+        data = db.get_analytics_rooms(date_from, date_to)
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"error": str(exc)})
-    return AnalyticsRoomsResponse(**data)
+    return AnalyticsRoomsResponse.model_validate(data)
 
 
-@router.get("/clubs", response_model=AnalyticsClubsResponse)
-def get_analytics_clubs(
+@router.get("/analytics/clubs", response_model=AnalyticsClubsResponse)
+def analytics_clubs(
     request: Request,
-    from_ts: datetime | None = Query(None, alias="from"),
-    to_ts: datetime | None = Query(None, alias="to"),
+    date_from: datetime | None = Query(default=None, alias="from"),
+    date_to: datetime | None = Query(default=None, alias="to"),
 ) -> AnalyticsClubsResponse:
     require_council(request)
     try:
-        data = db.get_analytics_clubs(from_ts=from_ts, to_ts=to_ts)
+        data = db.get_analytics_clubs(date_from, date_to)
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"error": str(exc)})
-    return AnalyticsClubsResponse(**data)
+    return AnalyticsClubsResponse.model_validate(data)

@@ -21,25 +21,25 @@ router = APIRouter()
 
 @router.get("/events", response_model=EventsResponse)
 def list_events(
-    from_ts: datetime | None = Query(None, alias="from"),
-    to_ts: datetime | None = Query(None, alias="to"),
-    club_id: str | None = None,
-    status: Literal["scheduled", "cancelled", "completed", "ongoing"] | None = None,
-    q: str | None = None,
     upcoming: bool = True,
+    date_from: datetime | None = Query(default=None, alias="from"),
+    date_to: datetime | None = Query(default=None, alias="to"),
+    club_id: str | None = None,
+    status: Literal["scheduled", "cancelled"] | None = None,
+    q: str | None = None,
 ) -> EventsResponse:
+    """v2-api-contracts.md §3.1 — additive filters (`from`/`to`/`club_id`/
+    `status`/`q`) and additive response fields (`topic`/`end_ts`/`status`). An
+    unrecognized `status` value is rejected by the `Literal` type as HTTP 422."""
     try:
-        if from_ts is None and to_ts is None and club_id is None and status is None and q is None:
-            rows = db.get_events(upcoming)
-        else:
-            rows = db.get_events(
-                from_ts=from_ts,
-                to_ts=to_ts,
-                club_id=club_id,
-                status=status,
-                q=q,
-                upcoming=upcoming,
-            )
+        rows = db.get_events(
+            upcoming=upcoming,
+            date_from=date_from,
+            date_to=date_to,
+            club_id=club_id,
+            status=status,
+            q=q,
+        )
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"events": [], "error": str(exc)})
     return EventsResponse(events=rows)
@@ -47,30 +47,14 @@ def list_events(
 
 @router.get("/events/{event_id}", response_model=EventDetailResponse)
 def get_event(event_id: str) -> EventDetailResponse:
+    """v2-api-contracts.md §3.2 — full single-event record for Event Detail."""
     try:
-        data = db.get_event_detail(event_id)
-    except db.NotFoundError:
-        raise HTTPException(status_code=404, detail={"error": "event_not_found"})
+        row = db.get_event_detail(event_id)
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"error": str(exc)})
-    return EventDetailResponse(**data)
-
-
-@router.patch("/events/{event_id}", response_model=CancelEventResponse)
-def patch_event(event_id: str, body: PatchEventRequest, request: Request) -> CancelEventResponse:
-    require_council(request)
-    if body.status != "cancelled":
-        raise HTTPException(status_code=422, detail={"error": "invalid_status_transition"})
-
-    try:
-        res = db.cancel_event(event_id)
-    except db.NotFoundError:
+    if row is None:
         raise HTTPException(status_code=404, detail={"error": "event_not_found"})
-    except db.InvalidStatusTransitionError:
-        raise HTTPException(status_code=422, detail={"error": "invalid_status_transition"})
-    except db.WarehouseError as exc:
-        raise HTTPException(status_code=502, detail={"error": str(exc)})
-    return CancelEventResponse(**res)
+    return EventDetailResponse(**row)
 
 
 @router.post("/events/register", response_model=RegisterEventResponse, status_code=201)
@@ -112,3 +96,21 @@ def create_event(body: CreateEventRequest, request: Request) -> CreateEventRespo
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"error": str(exc)})
     return CreateEventResponse(**created)
+
+
+@router.patch("/events/{event_id}", response_model=CancelEventResponse)
+def patch_event(event_id: str, body: PatchEventRequest, request: Request) -> CancelEventResponse:
+    """v2-api-contracts.md §8.2 — narrow scope: the `scheduled → cancelled`
+    transition only. council-only; cascades booking cancellation in `db.py`."""
+    require_council(request)
+    if body.status != "cancelled":
+        raise HTTPException(status_code=422, detail={"error": "invalid_status_transition"})
+    try:
+        result = db.cancel_event(event_id)
+    except db.NotFoundError:
+        raise HTTPException(status_code=404, detail={"error": "event_not_found"})
+    except db.InvalidStatusTransitionError:
+        raise HTTPException(status_code=422, detail={"error": "invalid_status_transition"})
+    except db.WarehouseError as exc:
+        raise HTTPException(status_code=502, detail={"error": str(exc)})
+    return CancelEventResponse(**result)
