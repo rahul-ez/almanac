@@ -9,20 +9,72 @@ export type Role = "student" | "council";
 
 export interface SessionResponse {
   role: Role;
+  display_name?: string;
+  display_email?: string;
 }
+
+export type EventStatus = "scheduled" | "cancelled" | "upcoming" | "ongoing" | "completed";
 
 export interface EventSummary {
   event_id: string;
   name: string;
   club: string;
+  topic?: string;
   start_ts: string;
+  end_ts?: string;
   room: string | null;
   attendance_count: number;
-  status: "upcoming" | "ongoing" | "completed" | "cancelled";
+  status: EventStatus;
+}
+
+export interface ListEventsParams {
+  upcoming?: boolean;
+  from?: string;
+  to?: string;
+  club_id?: string;
+  status?: "scheduled" | "cancelled";
+  q?: string;
 }
 
 export interface ListEventsResponse {
   events: EventSummary[];
+  error?: string;
+}
+
+export interface EventDetailResponse {
+  event_id: string;
+  name: string;
+  club: string;
+  club_id?: string;
+  topic?: string;
+  description?: string | null;
+  room: string | null;
+  room_id?: string | null;
+  start_ts: string;
+  end_ts?: string;
+  status: EventStatus;
+  attendance_count: number;
+  created_at?: string;
+  error?: string;
+}
+
+export interface PulseEventSummary {
+  event_id: string;
+  name: string;
+  club: string;
+  room?: string | null;
+  start_ts?: string;
+  end_ts?: string;
+}
+
+export interface CampusPulseResponse {
+  at: string;
+  events_now: PulseEventSummary[];
+  events_upcoming: PulseEventSummary[];
+  rooms_available_count: number;
+  rooms_total_count: number;
+  registrations_today: number;
+  next_major_event?: PulseEventSummary | null;
   error?: string;
 }
 
@@ -112,6 +164,18 @@ export interface ListInternshipsResponse {
   error?: string;
 }
 
+export interface RegisterEventRequest {
+  event_id: string;
+  registrant_name: string;
+  registrant_email: string;
+}
+
+export interface RegisterEventResponse {
+  status: "ok";
+  attendance_id: string;
+  error?: string;
+}
+
 // ── Mock flag ─────────────────────────────────────────────────────────────────
 // Defaults to false (connecting to live Backend at /api). Set VITE_USE_MOCK=true for mock UI development.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -135,57 +199,220 @@ async function apiFetch<T>(
 
 // ── API functions ─────────────────────────────────────────────────────────────
 
-/** Initialize or update the session role. Called on mount (no code) and after AccessCodeModal. */
-export async function createSession(accessCode?: string): Promise<SessionResponse> {
+/** Retrieve current session info (GET /api/session). */
+export async function getSession(): Promise<SessionResponse> {
   if (USE_MOCK) {
-    return { role: accessCode ? "council" : "student" };
+    return { role: "student" };
+  }
+  return apiFetch<SessionResponse>("/api/session");
+}
+
+/** Initialize or update the session role (POST /api/session). */
+export async function createSession(
+  accessCode?: string,
+  displayName?: string,
+  displayEmail?: string
+): Promise<SessionResponse> {
+  if (USE_MOCK) {
+    return {
+      role: accessCode ? "council" : "student",
+      ...(displayName ? { display_name: displayName } : {}),
+      ...(displayEmail ? { display_email: displayEmail } : {}),
+    };
   }
   return apiFetch<SessionResponse>("/api/session", {
     method: "POST",
-    body: JSON.stringify({ access_code: accessCode ?? "" }),
+    body: JSON.stringify({
+      access_code: accessCode ?? "",
+      ...(displayName ? { display_name: displayName } : {}),
+      ...(displayEmail ? { display_email: displayEmail } : {}),
+    }),
   });
 }
 
-/** List upcoming events with live attendance counts. Powers Newsletter Home. */
-export async function listEvents(upcoming = true): Promise<ListEventsResponse> {
+/** End session and clear cookie (POST /api/session/end). */
+export async function endSession(): Promise<SessionResponse> {
+  if (USE_MOCK) {
+    return { role: "student" };
+  }
+  return apiFetch<SessionResponse>("/api/session/end", {
+    method: "POST",
+  });
+}
+
+/** List events with flexible filter parameters or boolean upcoming flag (GET /api/events). */
+export async function listEvents(
+  paramsOrUpcoming?: boolean | ListEventsParams
+): Promise<ListEventsResponse> {
+  const params: ListEventsParams =
+    typeof paramsOrUpcoming === "boolean"
+      ? { upcoming: paramsOrUpcoming }
+      : paramsOrUpcoming ?? {};
+
+  if (USE_MOCK) {
+    const mockEvents: EventSummary[] = [
+      {
+        event_id: "evt_001",
+        name: "AI Workshop",
+        club: "AI Club",
+        topic: "AI",
+        start_ts: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+        end_ts: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+        room: "Auditorium",
+        attendance_count: 42,
+        status: "upcoming",
+      },
+      {
+        event_id: "evt_002",
+        name: "Robotics Demo Day",
+        club: "Robotics Society",
+        topic: "Hardware",
+        start_ts: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        end_ts: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+        room: "Lab 204",
+        attendance_count: 18,
+        status: "ongoing",
+      },
+      {
+        event_id: "evt_003",
+        name: "Design Sprint",
+        club: "Design Club",
+        topic: "Design",
+        start_ts: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        end_ts: new Date(Date.now() + 28 * 60 * 60 * 1000).toISOString(),
+        room: null,
+        attendance_count: 0,
+        status: "upcoming",
+      },
+      {
+        event_id: "evt_004",
+        name: "Web3 Hackathon Prep",
+        club: "Coding Club",
+        topic: "Blockchain",
+        start_ts: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+        end_ts: new Date(Date.now() + 52 * 60 * 60 * 1000).toISOString(),
+        room: "Classroom 101",
+        attendance_count: 15,
+        status: "upcoming",
+      },
+      {
+        event_id: "evt_005",
+        name: "Photography Walk",
+        club: "Arts Club",
+        topic: "Arts",
+        start_ts: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+        end_ts: new Date(Date.now() - 46 * 60 * 60 * 1000).toISOString(),
+        room: "Quad",
+        attendance_count: 8,
+        status: "completed",
+      },
+      {
+        event_id: "evt_006",
+        name: "Guest Lecture: Quantum Computing",
+        club: "Physics Society",
+        topic: "Quantum",
+        start_ts: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
+        end_ts: new Date(Date.now() + 74 * 60 * 60 * 1000).toISOString(),
+        room: "Auditorium",
+        attendance_count: 0,
+        status: "cancelled",
+      },
+    ];
+
+    let filtered = [...mockEvents];
+    if (params?.club_id) {
+      filtered = filtered.filter((e) => e.club.toLowerCase().includes(params.club_id!.toLowerCase()));
+    }
+    if (params?.q) {
+      const query = params.q.toLowerCase();
+      filtered = filtered.filter((e) => e.name.toLowerCase().includes(query) || (e.topic && e.topic.toLowerCase().includes(query)));
+    }
+    if (params?.status) {
+      filtered = filtered.filter((e) => e.status === params.status);
+    } else if (params?.upcoming !== false) {
+      filtered = filtered.filter((e) => e.status !== "cancelled" && e.status !== "completed");
+    }
+
+    return { events: filtered };
+  }
+
+  const query = new URLSearchParams();
+  if (params?.upcoming !== undefined) query.set("upcoming", String(params.upcoming));
+  if (params?.from) query.set("from", params.from);
+  if (params?.to) query.set("to", params.to);
+  if (params?.club_id) query.set("club_id", params.club_id);
+  if (params?.status) query.set("status", params.status);
+  if (params?.q) query.set("q", params.q);
+
+  const qs = query.toString() ? `?${query}` : "";
+  return apiFetch<ListEventsResponse>(`/api/events${qs}`);
+}
+
+/** Get detail for a specific event (GET /api/events/{event_id}). */
+export async function getEvent(eventId: string): Promise<EventDetailResponse> {
   if (USE_MOCK) {
     return {
-      events: [
+      event_id: eventId,
+      name: "AI Workshop",
+      club: "AI Club",
+      club_id: "club_001",
+      topic: "AI & Machine Learning",
+      description: "Hands-on intro to large language models, agents, and modern fine-tuning workflows.",
+      room: "Auditorium",
+      room_id: "room_005",
+      start_ts: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      end_ts: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+      status: "scheduled",
+      attendance_count: 42,
+      created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+    };
+  }
+  return apiFetch<EventDetailResponse>(`/api/events/${encodeURIComponent(eventId)}`);
+}
+
+/** Get live campus pulse snapshot (GET /api/campus/pulse). */
+export async function getCampusPulse(): Promise<CampusPulseResponse> {
+  if (USE_MOCK) {
+    return {
+      at: new Date().toISOString(),
+      events_now: [
+        {
+          event_id: "evt_002",
+          name: "Robotics Demo Day",
+          club: "Robotics Society",
+          room: "Lab 204",
+          end_ts: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+        },
+      ],
+      events_upcoming: [
         {
           event_id: "evt_001",
           name: "AI Workshop",
           club: "AI Club",
           start_ts: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-          room: "Auditorium",
-          attendance_count: 42,
-          status: "upcoming",
-        },
-        {
-          event_id: "evt_002",
-          name: "Robotics Demo Day",
-          club: "Robotics Society",
-          start_ts: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-          room: "Lab 204",
-          attendance_count: 18,
-          status: "ongoing",
         },
         {
           event_id: "evt_003",
           name: "Design Sprint",
           club: "Design Club",
           start_ts: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          room: null,
-          attendance_count: 0,
-          status: "upcoming",
         },
       ],
+      rooms_available_count: 5,
+      rooms_total_count: 9,
+      registrations_today: 12,
+      next_major_event: {
+        event_id: "evt_001",
+        name: "AI Workshop",
+        club: "AI Club",
+        start_ts: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      },
     };
   }
-  const params = upcoming ? "?upcoming=true" : "";
-  return apiFetch<ListEventsResponse>(`/api/events${params}`);
+  return apiFetch<CampusPulseResponse>("/api/campus/pulse");
 }
 
-/** Get room availability at a given time. Powers Newsletter Home + Admin Panel. */
+/** Get room availability at a given time. Powers Home + Admin Panel. */
 export async function getRoomAvailability(
   at?: string,
   type?: string
@@ -226,7 +453,7 @@ export async function askGenie(question: string): Promise<GenieResponse> {
       status: "ok",
       answer: "Lab 204 is free at 3pm today.",
       sql: "SELECT r.name FROM rooms r WHERE room_is_free(r.room_id, '2026-09-05T15:00:00') = TRUE AND r.type = 'Lab'",
-      rows: [{ name: "Lab 204" }],
+      rows: [{ name: "Lab 204", room_id: "room_005" }],
     };
   }
   return apiFetch<GenieResponse>("/api/genie/ask", {
@@ -270,7 +497,7 @@ export async function createEvent(payload: CreateEventRequest): Promise<CreateEv
   });
 }
 
-/** List internship opportunities. Powers Newsletter Home internships section. */
+/** List internship opportunities. Powers Home internships section. */
 export async function listInternships(openOnly = true): Promise<ListInternshipsResponse> {
   if (USE_MOCK) {
     return {
@@ -290,18 +517,6 @@ export async function listInternships(openOnly = true): Promise<ListInternshipsR
     };
   }
   return apiFetch<ListInternshipsResponse>(`/api/internships?open_only=${openOnly}`);
-}
-
-export interface RegisterEventRequest {
-  event_id: string;
-  registrant_name: string;
-  registrant_email: string;
-}
-
-export interface RegisterEventResponse {
-  status: "ok";
-  attendance_id: string;
-  error?: string;
 }
 
 /** Register for an event directly from Almanac UI or Ask Genie link. */
