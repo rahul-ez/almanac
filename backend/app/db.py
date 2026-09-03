@@ -634,6 +634,40 @@ def insert_attendance(
     return attendance_id
 
 
+def get_event_attendees(event_id: str) -> dict[str, Any]:
+    """Retrieve full attendee details (name, email, registration time, student info) for an event."""
+    resolved = resolve_event_id(event_id)
+    if not resolved:
+        raise NotFoundError("event_not_found")
+    event_id = resolved
+
+    event_rows = _query(f"SELECT name FROM {SCHEMA}.events WHERE event_id = :event_id", {"event_id": event_id})
+    event_name = event_rows[0]["name"] if event_rows else event_id
+
+    sql = f"""
+        SELECT
+            a.attendance_id,
+            a.event_id,
+            a.registrant_name,
+            a.registrant_email,
+            a.registered_at,
+            a.student_id,
+            s.major,
+            s.year
+        FROM {SCHEMA}.event_attendance a
+        LEFT JOIN {SCHEMA}.students s ON s.student_id = a.student_id
+        WHERE a.event_id = :event_id
+        ORDER BY a.registered_at DESC
+    """
+    rows = _query(sql, {"event_id": event_id})
+    return {
+        "event_id": event_id,
+        "event_name": event_name,
+        "total_count": len(rows),
+        "attendees": rows,
+    }
+
+
 # =============================================================================
 # Reads: internships
 # =============================================================================

@@ -257,6 +257,25 @@ export interface ActivityResponse {
   error?: string;
 }
 
+export interface EventAttendee {
+  attendance_id: string;
+  event_id: string;
+  registrant_name: string;
+  registrant_email: string;
+  registered_at: string;
+  student_id?: string | null;
+  major?: string | null;
+  year?: number | null;
+}
+
+export interface EventAttendeesResponse {
+  event_id: string;
+  event_name?: string | null;
+  total_count: number;
+  attendees: EventAttendee[];
+  error?: string;
+}
+
 // ── Mock flag ─────────────────────────────────────────────────────────────────
 // Defaults to false (connecting to live Backend at /api). Set VITE_USE_MOCK=true for mock UI development.
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -834,6 +853,70 @@ export async function getActivity(limit = 20): Promise<ActivityResponse> {
   if (limit) params.set("limit", String(limit));
   const qs = params.toString() ? `?${params}` : "";
   return apiFetch<ActivityResponse>(`/api/activity${qs}`);
+}
+
+/** Get registered students for an event (council only). */
+export async function getEventAttendees(eventId: string): Promise<EventAttendeesResponse> {
+  if (USE_MOCK) {
+    return {
+      event_id: eventId,
+      event_name: "AI Workshop",
+      total_count: 5,
+      attendees: [
+        {
+          attendance_id: "att_001",
+          event_id: eventId,
+          registrant_name: "Alice Chen",
+          registrant_email: "alice.chen@campus.edu",
+          registered_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
+          student_id: "stu_001",
+          major: "Computer Science",
+          year: 3,
+        },
+        {
+          attendance_id: "att_002",
+          event_id: eventId,
+          registrant_name: "Marcus Vance",
+          registrant_email: "mvance@campus.edu",
+          registered_at: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
+          student_id: "stu_004",
+          major: "Data Science",
+          year: 2,
+        },
+        {
+          attendance_id: "att_003",
+          event_id: eventId,
+          registrant_name: "Elena Rostova",
+          registrant_email: "elena.r@campus.edu",
+          registered_at: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
+          student_id: "stu_008",
+          major: "Robotics",
+          year: 4,
+        },
+        {
+          attendance_id: "att_004",
+          event_id: eventId,
+          registrant_name: "David Kim",
+          registrant_email: "dkim@campus.edu",
+          registered_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+          student_id: null,
+          major: null,
+          year: null,
+        },
+        {
+          attendance_id: "att_005",
+          event_id: eventId,
+          registrant_name: "Sophia Patel",
+          registrant_email: "spatel@campus.edu",
+          registered_at: new Date(Date.now() - 36 * 3600 * 1000).toISOString(),
+          student_id: "stu_012",
+          major: "Electrical Engineering",
+          year: 1,
+        },
+      ],
+    };
+  }
+  return apiFetch<EventAttendeesResponse>(`/api/events/${eventId}/attendees`);
 }
 
 

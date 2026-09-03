@@ -193,3 +193,56 @@ class TestPatchEventCancel:
         monkeypatch.setattr(db, "cancel_event", boom)
         resp = council_client.patch("/api/events/evt_001", json={"status": "cancelled"})
         assert resp.status_code == 502
+
+
+class TestEventAttendees:
+    def test_forbidden_for_student(self, client: TestClient):
+        resp = client.get("/api/events/evt_001/attendees")
+        assert resp.status_code == 403
+        assert resp.json() == {"error": "forbidden"}
+
+    def test_success_returns_attendee_list(self, council_client: TestClient, monkeypatch):
+        mock_data = {
+            "event_id": "evt_001",
+            "event_name": "AI Workshop",
+            "total_count": 2,
+            "attendees": [
+                {
+                    "attendance_id": "att_001",
+                    "event_id": "evt_001",
+                    "registrant_name": "Alice Chen",
+                    "registrant_email": "alice@campus.edu",
+                    "registered_at": datetime(2026, 9, 2, 10, 0),
+                    "student_id": "stu_001",
+                    "major": "Computer Science",
+                    "year": 3,
+                },
+                {
+                    "attendance_id": "att_002",
+                    "event_id": "evt_001",
+                    "registrant_name": "Bob Smith",
+                    "registrant_email": "bob@campus.edu",
+                    "registered_at": datetime(2026, 9, 2, 11, 0),
+                    "student_id": None,
+                    "major": None,
+                    "year": None,
+                },
+            ],
+        }
+        monkeypatch.setattr(db, "get_event_attendees", lambda eid: mock_data)
+        resp = council_client.get("/api/events/evt_001/attendees")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_count"] == 2
+        assert len(data["attendees"]) == 2
+        assert data["attendees"][0]["registrant_name"] == "Alice Chen"
+        assert data["attendees"][0]["registrant_email"] == "alice@campus.edu"
+
+    def test_not_found_is_404(self, council_client: TestClient, monkeypatch):
+        def boom(eid):
+            raise db.NotFoundError("event_not_found")
+
+        monkeypatch.setattr(db, "get_event_attendees", boom)
+        resp = council_client.get("/api/events/evt_404/attendees")
+        assert resp.status_code == 404
+        assert resp.json() == {"error": "event_not_found"}

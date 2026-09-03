@@ -9,6 +9,7 @@ from app.models import (
     CancelEventResponse,
     CreateEventRequest,
     CreateEventResponse,
+    EventAttendeesResponse,
     EventDetailResponse,
     EventsResponse,
     PatchEventRequest,
@@ -55,6 +56,19 @@ def get_event(event_id: str) -> EventDetailResponse:
     if row is None:
         raise HTTPException(status_code=404, detail={"error": "event_not_found"})
     return EventDetailResponse(**row)
+
+
+@router.get("/events/{event_id}/attendees", response_model=EventAttendeesResponse)
+def get_event_attendees(event_id: str, request: Request) -> EventAttendeesResponse:
+    """Council endpoint: get full list of registered students for an event."""
+    require_council(request)
+    try:
+        data = db.get_event_attendees(event_id)
+    except db.NotFoundError:
+        raise HTTPException(status_code=404, detail={"error": "event_not_found"})
+    except db.WarehouseError as exc:
+        raise HTTPException(status_code=502, detail={"error": str(exc)})
+    return EventAttendeesResponse(**data)
 
 
 @router.post("/events/register", response_model=RegisterEventResponse, status_code=201)

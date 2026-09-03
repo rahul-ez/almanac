@@ -128,6 +128,24 @@ class RegisterEventResponse(BaseModel):
     attendance_id: str
 
 
+class EventAttendee(BaseModel):
+    attendance_id: str
+    event_id: str
+    registrant_name: str
+    registrant_email: str
+    registered_at: datetime
+    student_id: str | None = None
+    major: str | None = None
+    year: int | None = None
+
+
+class EventAttendeesResponse(BaseModel):
+    event_id: str
+    event_name: str | None = None
+    total_count: int
+    attendees: list[EventAttendee]
+
+
 # --- Rooms -----------------------------------------------------------------
 class RoomSummary(BaseModel):
     room_id: str
