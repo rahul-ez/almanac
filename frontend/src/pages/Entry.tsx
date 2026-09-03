@@ -16,10 +16,16 @@ export function Entry() {
   const { setStudentSession, setCouncilSession } = useSession();
   const navigate = useNavigate();
 
-  // Student optional profile state
-  const [showProfileFields, setShowProfileFields] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [displayEmail, setDisplayEmail] = useState("");
+  // Student optional profile state (initialized from localStorage cache)
+  const [displayName, setDisplayName] = useState(
+    () => localStorage.getItem("almanac_profile_name") || ""
+  );
+  const [displayEmail, setDisplayEmail] = useState(
+    () => localStorage.getItem("almanac_profile_email") || ""
+  );
+  const [showProfileFields, setShowProfileFields] = useState(
+    () => Boolean(localStorage.getItem("almanac_profile_name") || localStorage.getItem("almanac_profile_email"))
+  );
   const [studentLoading, setStudentLoading] = useState(false);
 
   // Council access state
@@ -28,9 +34,25 @@ export function Entry() {
   const [councilLoading, setCouncilLoading] = useState(false);
   const [councilFeedback, setCouncilFeedback] = useState<string | null>(null);
 
+  function handleNameChange(val: string) {
+    setDisplayName(val);
+    localStorage.setItem("almanac_profile_name", val);
+  }
+
+  function handleEmailChange(val: string) {
+    setDisplayEmail(val);
+    localStorage.setItem("almanac_profile_email", val);
+  }
+
   async function handleStudentContinue() {
     setStudentLoading(true);
     try {
+      if (displayName.trim()) {
+        localStorage.setItem("almanac_profile_name", displayName.trim());
+      }
+      if (displayEmail.trim()) {
+        localStorage.setItem("almanac_profile_email", displayEmail.trim());
+      }
       await setStudentSession(displayName, displayEmail);
       navigate("/", { replace: true });
     } finally {
@@ -111,7 +133,7 @@ export function Entry() {
                   label="Display name"
                   placeholder="e.g. Aditi Sharma"
                   value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
                 />
                 <FormField
                   id="entry-display-email"
@@ -119,7 +141,7 @@ export function Entry() {
                   label="Campus email"
                   placeholder="e.g. aditi.sharma@campus.edu"
                   value={displayEmail}
-                  onChange={(e) => setDisplayEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   helperText="UX convenience only — no account is created"
                 />
               </div>

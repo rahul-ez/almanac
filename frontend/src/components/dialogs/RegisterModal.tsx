@@ -6,6 +6,7 @@ import { X, CheckCircle, Ticket } from "lucide-react";
 import { Button } from "../primitives/Button";
 import { FormField } from "../primitives/FormField";
 import { registerForEvent } from "../../api/client";
+import { useSession } from "../../hooks/useSession";
 
 interface RegisterModalProps {
   eventId: string;
@@ -20,12 +21,29 @@ export function RegisterModal({
   onClose,
   onSuccess,
 }: RegisterModalProps) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const { displayName, displayEmail } = useSession();
+
+  // Initialize from session context or cached localStorage
+  const [name, setName] = useState(
+    () => displayName || localStorage.getItem("almanac_profile_name") || ""
+  );
+  const [email, setEmail] = useState(
+    () => displayEmail || localStorage.getItem("almanac_profile_email") || ""
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
+
+  // Sync state if session resolves after mount
+  useEffect(() => {
+    if (!name && (displayName || localStorage.getItem("almanac_profile_name"))) {
+      setName(displayName || localStorage.getItem("almanac_profile_name") || "");
+    }
+    if (!email && (displayEmail || localStorage.getItem("almanac_profile_email"))) {
+      setEmail(displayEmail || localStorage.getItem("almanac_profile_email") || "");
+    }
+  }, [displayName, displayEmail]);
 
   // Escape to dismiss
   useEffect(() => {
@@ -36,9 +54,23 @@ export function RegisterModal({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  function handleNameChange(val: string) {
+    setName(val);
+    localStorage.setItem("almanac_profile_name", val);
+  }
+
+  function handleEmailChange(val: string) {
+    setEmail(val);
+    localStorage.setItem("almanac_profile_email", val);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
+
+    // Cache to localStorage
+    localStorage.setItem("almanac_profile_name", name.trim());
+    localStorage.setItem("almanac_profile_email", email.trim());
 
     setLoading(true);
     setError(null);
@@ -139,7 +171,7 @@ export function RegisterModal({
                   required
                   value={name}
                   placeholder="e.g. Rahul Sharma"
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
                 />
 
                 <FormField
@@ -150,7 +182,7 @@ export function RegisterModal({
                   required
                   value={email}
                   placeholder="e.g. rahul.sharma@campus.edu"
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   helperText="Use your campus email address"
                 />
 
