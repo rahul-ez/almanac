@@ -9,7 +9,7 @@ import type { Message } from "../../hooks/useGenieConversation";
 import { GenieEvidenceDisclosure } from "./GenieEvidenceDisclosure";
 import { MarkdownText } from "../primitives/MarkdownText";
 import { useSession } from "../../hooks/useSession";
-import { User, AlertCircle, HelpCircle, Database, ArrowRight, Ticket, MapPin, Calendar } from "lucide-react";
+import { User, AlertCircle, HelpCircle, Database, ArrowRight, Ticket, MapPin, Calendar, DoorClosed } from "lucide-react";
 
 interface GenieMessageProps {
   message: Message;
@@ -225,9 +225,10 @@ export function GenieMessage({ message, isNewest = false, onRegisterClick }: Gen
 
                     {role === "council" && (
                       <Link
-                        to="/admin"
+                        to={`/admin?area=rooms&room_id=${encodeURIComponent(act.id)}`}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-primary text-white hover:bg-primary-hover text-caption font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
                       >
+                        <DoorClosed size={13} aria-hidden="true" />
                         <span>Book room</span>
                       </Link>
                     )}
