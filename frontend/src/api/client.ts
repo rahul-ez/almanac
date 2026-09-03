@@ -530,11 +530,71 @@ export async function getTeacherAvailability(
 /** Submit a natural-language campus question to Genie. Powers Ask Genie page. */
 export async function askGenie(question: string): Promise<GenieResponse> {
   if (USE_MOCK) {
+    const q = question.toLowerCase();
+
+    // 1. Event detail & Actions (e.g. AI Workshop, Hackathon, Events)
+    if (q.includes("ai workshop") || q.includes("workshop")) {
+      return {
+        status: "ok",
+        answer: "AI Workshop is hosted by AI Club on 2026-09-05 at 15:00 in Lab 204. Currently 42 attendees are registered. You can register with one click below.",
+        sql: "SELECT e.event_id, e.name, c.name AS club, r.name AS room, e.start_ts, e.end_ts, e.topic, (SELECT COUNT(*) FROM event_attendance a WHERE a.event_id = e.event_id) AS attendance_count FROM events e JOIN clubs c ON c.club_id = e.club_id LEFT JOIN rooms r ON r.room_id = e.room_id WHERE e.event_id = 'evt_001';",
+        rows: [{ event_id: "evt_001", name: "AI Workshop", club: "AI Club", room: "Lab 204", start_ts: "2026-09-05T15:00:00", attendance_count: 42 }],
+      };
+    }
+
+    // 2. Registration action triggers
+    if (q.includes("register") || q.includes("attend") || q.includes("sign up")) {
+      return {
+        status: "ok",
+        answer: "You can register directly for upcoming campus events here: [Register for AI Workshop](#register:evt_001) or [Register for Robotics Demo Day](#register:evt_002).",
+        sql: "SELECT event_id, name, start_ts FROM events WHERE status = 'scheduled' ORDER BY start_ts ASC LIMIT 2;",
+        rows: [
+          { event_id: "evt_001", name: "AI Workshop", start_ts: "2026-09-05T15:00:00" },
+          { event_id: "evt_002", name: "Robotics Demo Day", start_ts: "2026-09-03T13:00:00" },
+        ],
+      };
+    }
+
+    // 3. Internships
+    if (q.includes("internship") || q.includes("intern") || q.includes("job") || q.includes("career")) {
+      return {
+        status: "ok",
+        answer: "There are 5 open internship opportunities available right now across Lakehouse Engineering, ML Research, and Full-Stack Development.",
+        sql: "SELECT internship_id, company_name, role_title, location, stipend, deadline_ts FROM internships WHERE status = 'open' ORDER BY deadline_ts ASC;",
+        rows: [
+          { internship_id: "int_001", company_name: "Databricks", role_title: "Lakehouse Engineering Intern", location: "San Francisco, CA (Hybrid)", stipend: "$55/hr" },
+          { internship_id: "int_002", company_name: "Google DeepMind", role_title: "AI Research Assistant", location: "Mountain View, CA", stipend: "$60/hr" },
+        ],
+      };
+    }
+
+    // 4. Teachers & Timetable
+    if (q.includes("prof") || q.includes("teacher") || q.includes("dr.") || q.includes("turing") || q.includes("hopper")) {
+      return {
+        status: "ok",
+        answer: "Prof. Alan Turing is free on Monday at 2:00 PM (no scheduled classes in teacher_timetable).",
+        sql: "SELECT teacher_name, start_ts, end_ts FROM teacher_timetable WHERE teacher_name = 'Alan Turing' AND start_ts <= '2026-09-07T14:00:00' AND '2026-09-07T14:00:00' < end_ts;",
+        rows: [{ teacher_name: "Alan Turing", available: true }],
+      };
+    }
+
+    // 5. Out of scope questions
+    if (q.includes("grade") || q.includes("president") || q.includes("weather") || q.includes("lunch")) {
+      return {
+        status: "no_answer",
+        message: "I can only answer questions about campus events, rooms, teacher availability, attendance, and internships from governed Delta tables.",
+      };
+    }
+
+    // 6. Default: Room availability
     return {
       status: "ok",
-      answer: "Lab 204 is free at 3pm today.",
-      sql: "SELECT r.name FROM rooms r WHERE room_is_free(r.room_id, '2026-09-05T15:00:00') = TRUE AND r.type = 'Lab'",
-      rows: [{ name: "Lab 204", room_id: "room_005" }],
+      answer: "Lab 204 and Robotics Lab are free at 3pm today.",
+      sql: "SELECT r.name, r.room_id, r.type FROM rooms r WHERE room_is_free(r.room_id, '2026-09-02T15:00:00') = TRUE AND r.type = 'Lab';",
+      rows: [
+        { name: "Lab 204", room_id: "room_005", type: "Lab" },
+        { name: "Robotics Lab", room_id: "room_004", type: "Lab" },
+      ],
     };
   }
   return apiFetch<GenieResponse>("/api/genie/ask", {
