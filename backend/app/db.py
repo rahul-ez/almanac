@@ -87,24 +87,61 @@ _ONE_HOUR = timedelta(hours=1)
 
 
 # =============================================================================
-# Connection handling
+# Connection pooling
 # =============================================================================
+import queue
+import threading
+
+_POOL_MAX_SIZE = 5
+_conn_pool: queue.Queue[Any] = queue.Queue(maxsize=_POOL_MAX_SIZE)
+_pool_lock = threading.Lock()
+
+
+def _create_raw_connection() -> Any:
+    hostname = (settings.databricks_host or "").replace("https://", "").replace("http://", "").split("/")[0]
+    return dbsql.connect(
+        server_hostname=hostname,
+        http_path=f"/sql/1.0/warehouses/{settings.sql_warehouse_id}",
+        access_token=settings.databricks_token,
+    )
+
+
 @contextmanager
 def _connection() -> Iterator[Any]:
+    conn = None
     try:
-        hostname = (settings.databricks_host or "").replace("https://", "").replace("http://", "").split("/")[0]
-        conn = dbsql.connect(
-            server_hostname=hostname,
-            http_path=f"/sql/1.0/warehouses/{settings.sql_warehouse_id}",
-            access_token=settings.databricks_token,
-        )
-    except Exception as exc:  # connection setup failure
-        logger.error("Failed to open SQL warehouse connection: %s", exc)
-        raise WarehouseError(str(exc)) from exc
+        conn = _conn_pool.get_nowait()
+    except queue.Empty:
+        pass
+
+    if conn is None:
+        try:
+            conn = _create_raw_connection()
+        except Exception as exc:
+            logger.error("Failed to open SQL warehouse connection: %s", exc)
+            raise WarehouseError(str(exc)) from exc
+
+    is_broken = False
     try:
         yield conn
+    except (WarehouseError, Exception) as exc:
+        # Check if error is a connection failure vs query error
+        is_broken = isinstance(exc, (dbsql.Error, WarehouseError))
+        if is_broken:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        raise
     finally:
-        conn.close()
+        if not is_broken and conn is not None:
+            try:
+                _conn_pool.put_nowait(conn)
+            except queue.Full:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 
 def _query(sql: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
