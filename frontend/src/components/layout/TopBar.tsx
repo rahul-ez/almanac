@@ -51,7 +51,7 @@ export function TopBar() {
             }}
             className="font-display text-h2 font-medium text-text hover:text-primary transition-colors duration-fast ease-standard flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm tracking-tight"
           >
-            Campus Companion
+            Almanac
           </a>
 
           {/* Primary navigation — 4 items inline */}

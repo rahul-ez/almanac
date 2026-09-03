@@ -71,7 +71,7 @@ export function Entry() {
         {/* Welcome header */}
         <div className="text-center flex flex-col gap-2">
           <h1 className="font-display text-display font-semibold text-text tracking-tight">
-            Welcome to Campus Companion
+            Welcome to Almanac
           </h1>
           <p className="text-body text-text-muted">
             One place to ask, discover, and act on what's happening on campus.
