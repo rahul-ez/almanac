@@ -1,14 +1,15 @@
 // frontend/src/components/genie/GenieMessage.tsx
 // 5 variants: user / assistant-ok / assistant-no_answer / assistant-error / assistant-loading.
-// Per campus-companion-redesign-spec.md §3 & §6:
-// Background --color-surface-elevated with navy-tinted --shadow-elevated on assistant-ok.
-// Standardized 1.5px stroke icons.
+// Genie -> Action rendering per v2-ui-spec.md §10 & v2-api-contracts.md §7.2.
+// Read-only action controls navigate or trigger existing application flows.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
+import { Link } from "react-router-dom";
 import type { Message } from "../../hooks/useGenieConversation";
 import { GenieEvidenceDisclosure } from "./GenieEvidenceDisclosure";
 import { MarkdownText } from "../primitives/MarkdownText";
-import { User, AlertCircle, HelpCircle, Database } from "lucide-react";
+import { useSession } from "../../hooks/useSession";
+import { User, AlertCircle, HelpCircle, Database, ArrowRight, Ticket, MapPin, Calendar } from "lucide-react";
 
 interface GenieMessageProps {
   message: Message;
@@ -16,14 +17,73 @@ interface GenieMessageProps {
   onRegisterClick?: (eventId: string) => void;
 }
 
+interface RecognizedAction {
+  type: "event" | "room";
+  id: string;
+  name?: string;
+}
+
 export function GenieMessage({ message, isNewest = false, onRegisterClick }: GenieMessageProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const { role } = useSession();
 
   useEffect(() => {
     if (isNewest && message.role === "assistant") {
       ref.current?.focus({ preventScroll: false });
     }
   }, [isNewest, message.role]);
+
+  // Heuristic action extraction from rows
+  const recognizedActions = useMemo<RecognizedAction[]>(() => {
+    if (!message.rows || message.rows.length === 0) return [];
+
+    const actions: RecognizedAction[] = [];
+    const seenIds = new Set<string>();
+
+    for (const row of message.rows) {
+      // 1. Check for event row patterns
+      let eventId: string | undefined;
+      let eventName: string | undefined;
+
+      for (const [k, v] of Object.entries(row)) {
+        const key = k.toLowerCase();
+        const valStr = String(v ?? "");
+        if (key.includes("event_id") || key === "evt_id" || valStr.startsWith("evt_")) {
+          eventId = valStr;
+        }
+        if (key === "name" || key === "event_name" || key === "title") {
+          eventName = valStr;
+        }
+      }
+
+      if (eventId && !seenIds.has(eventId)) {
+        seenIds.add(eventId);
+        actions.push({ type: "event", id: eventId, name: eventName });
+      }
+
+      // 2. Check for room row patterns
+      let roomId: string | undefined;
+      let roomName: string | undefined;
+
+      for (const [k, v] of Object.entries(row)) {
+        const key = k.toLowerCase();
+        const valStr = String(v ?? "");
+        if (key.includes("room_id") || key === "rm_id" || valStr.startsWith("room_") || valStr.startsWith("r_")) {
+          roomId = valStr;
+        }
+        if (key === "room" || key === "room_name" || (key === "name" && !eventId)) {
+          roomName = valStr;
+        }
+      }
+
+      if (roomId && !seenIds.has(roomId) && !eventId) {
+        seenIds.add(roomId);
+        actions.push({ type: "room", id: roomId, name: roomName });
+      }
+    }
+
+    return actions.slice(0, 3); // Cap at top 3 actions to keep chat clean
+  }, [message.rows]);
 
   const isUser = message.role === "user";
 
@@ -113,13 +173,74 @@ export function GenieMessage({ message, isNewest = false, onRegisterClick }: Gen
       <div
         ref={ref}
         tabIndex={-1}
-        className="max-w-[85%] bg-surface-elevated border border-border rounded-lg px-4 py-3 shadow-elevated"
+        className="max-w-[85%] bg-surface-elevated border border-border rounded-lg px-4 py-3 shadow-elevated flex flex-col gap-3"
       >
         <MarkdownText
           content={message.content}
           className="text-body text-text"
           onRegisterClick={onRegisterClick}
         />
+
+        {/* Genie -> Action controls */}
+        {recognizedActions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-divider" aria-label="Suggested actions">
+            {recognizedActions.map((act) => {
+              if (act.type === "event") {
+                return (
+                  <div key={act.id} className="flex items-center gap-1.5 flex-wrap">
+                    <Link
+                      to={`/events/${act.id}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary-subtle text-primary hover:bg-primary hover:text-white text-caption font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+                    >
+                      <Calendar size={13} aria-hidden="true" />
+                      <span>View Event {act.name ? `(${act.name})` : ""}</span>
+                      <ArrowRight size={12} aria-hidden="true" />
+                    </Link>
+
+                    {onRegisterClick && (
+                      <button
+                        type="button"
+                        onClick={() => onRegisterClick(act.id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-primary text-primary hover:bg-primary-subtle text-caption font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        aria-label={`Register for ${act.name ?? act.id}`}
+                      >
+                        <Ticket size={13} aria-hidden="true" />
+                        <span>Register</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              if (act.type === "room") {
+                return (
+                  <div key={act.id} className="flex items-center gap-1.5 flex-wrap">
+                    <Link
+                      to="/events"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary-subtle text-primary hover:bg-primary hover:text-white text-caption font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+                    >
+                      <MapPin size={13} aria-hidden="true" />
+                      <span>View availability {act.name ? `(${act.name})` : ""}</span>
+                    </Link>
+
+                    {role === "council" && (
+                      <Link
+                        to="/admin"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-primary text-white hover:bg-primary-hover text-caption font-semibold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm"
+                      >
+                        <span>Book room</span>
+                      </Link>
+                    )}
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+          </div>
+        )}
+
+        {/* Evidence Disclosure (SQL & Result table) */}
         {message.sql && (
           <GenieEvidenceDisclosure
             sql={message.sql}
@@ -130,3 +251,4 @@ export function GenieMessage({ message, isNewest = false, onRegisterClick }: Gen
     </div>
   );
 }
+
