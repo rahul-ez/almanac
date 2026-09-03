@@ -1,13 +1,17 @@
 from datetime import datetime
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app import db
 from app.auth import require_council
 from app.models import (
+    CancelEventResponse,
     CreateEventRequest,
     CreateEventResponse,
+    EventDetailResponse,
     EventsResponse,
+    PatchEventRequest,
     RegisterEventRequest,
     RegisterEventResponse,
 )
@@ -16,12 +20,57 @@ router = APIRouter()
 
 
 @router.get("/events", response_model=EventsResponse)
-def list_events(upcoming: bool = True) -> EventsResponse:
+def list_events(
+    from_ts: datetime | None = Query(None, alias="from"),
+    to_ts: datetime | None = Query(None, alias="to"),
+    club_id: str | None = None,
+    status: Literal["scheduled", "cancelled", "completed", "ongoing"] | None = None,
+    q: str | None = None,
+    upcoming: bool = True,
+) -> EventsResponse:
     try:
-        rows = db.get_events(upcoming=upcoming)
+        if from_ts is None and to_ts is None and club_id is None and status is None and q is None:
+            rows = db.get_events(upcoming)
+        else:
+            rows = db.get_events(
+                from_ts=from_ts,
+                to_ts=to_ts,
+                club_id=club_id,
+                status=status,
+                q=q,
+                upcoming=upcoming,
+            )
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"events": [], "error": str(exc)})
     return EventsResponse(events=rows)
+
+
+@router.get("/events/{event_id}", response_model=EventDetailResponse)
+def get_event(event_id: str) -> EventDetailResponse:
+    try:
+        data = db.get_event_detail(event_id)
+    except db.NotFoundError:
+        raise HTTPException(status_code=404, detail={"error": "event_not_found"})
+    except db.WarehouseError as exc:
+        raise HTTPException(status_code=502, detail={"error": str(exc)})
+    return EventDetailResponse(**data)
+
+
+@router.patch("/events/{event_id}", response_model=CancelEventResponse)
+def patch_event(event_id: str, body: PatchEventRequest, request: Request) -> CancelEventResponse:
+    require_council(request)
+    if body.status != "cancelled":
+        raise HTTPException(status_code=422, detail={"error": "invalid_status_transition"})
+
+    try:
+        res = db.cancel_event(event_id)
+    except db.NotFoundError:
+        raise HTTPException(status_code=404, detail={"error": "event_not_found"})
+    except db.InvalidStatusTransitionError:
+        raise HTTPException(status_code=422, detail={"error": "invalid_status_transition"})
+    except db.WarehouseError as exc:
+        raise HTTPException(status_code=502, detail={"error": str(exc)})
+    return CancelEventResponse(**res)
 
 
 @router.post("/events/register", response_model=RegisterEventResponse, status_code=201)
@@ -63,4 +112,3 @@ def create_event(body: CreateEventRequest, request: Request) -> CreateEventRespo
     except db.WarehouseError as exc:
         raise HTTPException(status_code=502, detail={"error": str(exc)})
     return CreateEventResponse(**created)
-
